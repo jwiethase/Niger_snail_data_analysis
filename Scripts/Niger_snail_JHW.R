@@ -1,4 +1,4 @@
-#' ### Prepare th eenvironment
+#' ### Prepare the environment
 
 # Remove all items in environment, for a clean start
 rm(list = ls(all=TRUE))  
@@ -9,6 +9,9 @@ library(lubridate)
 library(glmmTMB)
 library(ggthemes)
 library(DHARMa) # for model diagnostics
+library(emmeans)  # for post hoc test
+
+
 
 # Change font size and ggthemes globally
 theme_set(ggthemes::theme_few(base_size = 8))
@@ -228,96 +231,6 @@ model7 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + locality + wate
                   data=snaildf,
                   family=nbinom2)
 drop1(model7, test = "Chisq")        # 
-
-# Interaction effects, by importance
-Bulinus_tot_locality_seas_wmo <- as.data.frame(Effect.glmmTMB(model6, focal.predictors = c("locality", "seas_wmo"))) 
-Bulinus_tot_locality_month <- as.data.frame(Effect.glmmTMB(model6, focal.predictors = c("locality", "month"))) 
-Bulinus_tot_site_type_seas_wmo <- as.data.frame(Effect.glmmTMB(model6, focal.predictors = c("site_type", "seas_wmo"))) 
-Bulinus_tot_water_speed_ms_Temp_Water <- as.data.frame(Effect.glmmTMB(model7, focal.predictors = c("Temp_Water", "water_speed_ms"))) 
-
-tiff(file="Figures/Bulinus_tot_locality_seas_wmo.tiff", width = 166, height = 166, units = "mm", res = 150)
-ggplot(Bulinus_tot_locality_seas_wmo, aes(reorder(locality, fit), fit)) +
-  geom_bar(aes(fill = seas_wmo), stat = "identity", position = "dodge", col = "black") +
-  #geom_errorbar(aes(ymin = fit-se, ymax = fit+se, group = seas_wmo), width = .5) +
-  scale_fill_manual(values = c("darkgrey", "lightgrey")) +
-  xlab("") +
-  ylab("Fitted count") + 
-  ggtitle("Bulinus total") +
-  theme(legend.title = element_blank()) + 
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-dev.off()
-
-
-tiff(file="Figures/Bulinus_tot_locality_month.tiff", width = 166, height = 166, units = "mm", res = 150)
-ggplot(Bulinus_tot_locality_month, aes(as.integer(month), fit)) +
-  geom_ribbon(aes(ymin = fit-se, ymax = fit+se, group = locality), alpha = .5) +
-  geom_line() +
-  facet_wrap(~locality) +
-  scale_fill_manual(values = c("darkgrey", "lightgrey")) +
-  xlab("Month") +
-  ylab("Fitted count") + 
-  ggtitle("Bulinus total") +
-  theme(legend.title = element_blank()) + 
-  scale_x_continuous(breaks = seq(1, 12, by = 1))
-dev.off()
-
-tiff(file="Figures/Bulinus_tot_site_type_seas_wmo.tiff", width = 166, height = 166, units = "mm", res = 150)
-ggplot(Bulinus_tot_site_type_seas_wmo, aes(reorder(site_type, fit), fit)) +
-  geom_bar(aes(fill = seas_wmo), stat = "identity", position = "dodge", col = "black") +
-  scale_fill_manual(values = c("darkgrey", "lightgrey")) +
-  xlab("") +
-  ylab("Fitted count") + 
-  ggtitle("Bulinus total") +
-  theme(legend.title = element_blank()) + 
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-dev.off()
-
-tiff(file="Figures/Bulinus_tot_water_speed_ms_Temp_Water.tiff", width = 166, height = 166, units = "mm", res = 150)
-ggplot(Bulinus_tot_water_speed_ms_Temp_Water, aes(water_speed_ms, fit)) +
-  geom_bar(aes(fill = Temp_Water), stat = "identity", position = "dodge", col = "black") +
-  scale_fill_manual(values = c("darkgrey", "lightgrey")) +
-  xlab("") +
-  ylab("Fitted count") + 
-  ggtitle("Bulinus total") +
-  theme(legend.title = element_blank()) + 
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-dev.off()
-
-ggplot(snaildf, aes(water_speed_ms, Bulinus_tot)) +
-  geom_point()
-
-# Main effects, by importance
-Bulinus_tot_Temp_Water <- as.data.frame(Effect.glmmTMB(model6, focal.predictors = "Temp_Water")) 
-Bulinus_tot_Temp_Air <- as.data.frame(Effect.glmmTMB(model6, focal.predictors = "Temp_Air")) 
-Bulinus_tot_site_water_speed_ms <- as.data.frame(Effect.glmmTMB(model6, focal.predictors = "water_speed_ms")) 
-
-
-tiff(file="Figures/Bulinus_tot_Temp_Water.tiff", width = 166, height = 166, units = "mm", res = 150)
-ggplot(Bulinus_tot_Temp_Water, aes(Temp_Water, fit)) +
-  geom_ribbon(aes(ymin = fit-se, ymax = fit+se), alpha = .3) +
-  geom_line() +
-  xlab("Water temperature [°C]") +
-  ylab("Fitted count") +
-  ggtitle("Bulinus total") 
-dev.off()
-
-tiff(file="Figures/Bulinus_tot_Temp_Air.tiff", width = 166, height = 166, units = "mm", res = 150)
-ggplot(Bulinus_tot_Temp_Air, aes(Temp_Air, fit)) +
-  geom_ribbon(aes(ymin = fit-se, ymax = fit+se), alpha = .3) +
-  geom_line() +
-  xlab("Air temperature [°C]") +
-  ylab("Fitted count") +
-  ggtitle("Bulinus total") 
-dev.off()
-
-tiff(file="Figures/Bulinus_tot_site_water_speed_ms.tiff", width = 166, height = 166, units = "mm", res = 150)
-ggplot(Bulinus_tot_site_water_speed_ms, aes(water_speed_ms, fit)) +
-  geom_ribbon(aes(ymin = fit-se, ymax = fit+se), alpha = .3) +
-  geom_line() +
-  xlab("Water speed [ms]") +
-  ylab("Fitted count") +
-  ggtitle("Bulinus total") 
-dev.off()
 
 #'<br><br>
 #'
@@ -569,54 +482,16 @@ mod_8 <- glmmTMB(BT_tot ~ (1|locality/site_irn/visit_no) + locality + water_spee
                  family=nbinom2) 
 drop1(mod_8, test = "Chisq")  # water_depth         1 8229.4  0.674 0.411710   
 
-mod_9 <- glmmTMB(BT_tot ~ (1|locality/site_irn/visit_no) + locality + water_speed_ms + Cond + wmo_prec +
+mod_9 <- glmer.nb(BT_tot ~ (1|locality/site_irn/visit_no) + locality + water_speed_ms + Cond + wmo_prec +
                        site_type + seas_wmo + bp_pres + bf_pres + bp_pres*bf_pres +
-                       locality*seas_wmo + site_type*seas_wmo +
-                       offset(log(duration)),
-                 data=snaildf,
-                 family=nbinom2) 
+                       locality*seas_wmo + site_type*seas_wmo,
+                       offset = log(duration),
+                 data=snaildf)    # Model convergence problem; extreme or very small eigen values detected.
 drop1(mod_9, test = "Chisq")  # Nothing to remove
 
-summary(mod_9)
-Anova.glmmTMB(mod_9)
-
-lsmeans::lsmeans(mod_9, list(pairwise~ seas_wmo*locality), adjust = "tukey")
-
-
-# Interaction effects, by importance
-BT_locality_seas_wmo <- as.data.frame(glmmTMB::Effect.glmmTMB(mod_9, focal.predictors = c("locality", "seas_wmo")))
-BT_site_type_seas_wmo <- as.data.frame(glmmTMB::Effect.glmmTMB(mod_9, focal.predictors = c("site_type", "seas_wmo")))
-BT_bp_pres_bf_pres <- as.data.frame(glmmTMB::Effect.glmmTMB(mod_9, focal.predictors = c("bp_pres", "bf_pres")))
-
-tiff(file="Figures/BT_locality_seas_wmo.tiff", width = 166, height = 166, units = "mm", res = 150)
-ggplot(BT_locality_seas_wmo, aes(reorder(locality, fit), fit)) +
-      geom_bar(aes(fill = seas_wmo), stat = "identity", position = "dodge", col = "black") +
-      geom_errorbar(aes(ymin = fit-se, ymax = fit+se, group = seas_wmo), width = .5) +
-      scale_fill_manual(values = c("darkgrey", "lightgrey")) +
-      xlab("") +
-      ylab("Fitted count") + 
-      ggtitle("Bulinus truncatus") +
-      theme(legend.title = element_blank()) + 
-      theme(axis.text.x = element_text(angle = 45, hjust = 1))
-dev.off()
-
-tiff(file="Figures/BT_site_type_seas_wmo.tiff", width = 166, height = 166, units = "mm", res = 150)
-ggplot(BT_site_type_seas_wmo, aes(reorder(site_type, fit), fit)) +
-      geom_bar(aes(fill = seas_wmo), stat = "identity", position = "dodge", col = "black") +
-      scale_fill_manual(values = c("darkgrey", "lightgrey")) +
-      xlab("") +
-      ylab("Fitted count") + 
-      ggtitle("Bulinus truncatus") +
-      theme(legend.title = element_blank()) + 
-      theme(axis.text.x = element_text(angle = 45, hjust = 1))
-dev.off()
-
-tiff(file="Figures/BT_bp_pres_bf_pres.tiff", width = 166, height = 166, units = "mm", res = 150)
-ggplot(BT_bp_pres_bf_pres, aes(bp_pres, fit)) +
-      geom_bar(aes(fill = bf_pres), stat = "identity", position = "dodge", col = "black") +
-      #scale_fill_manual(values = c("darkgrey", "lightgrey")) +
-      ylab("Fitted count") + 
-      ggtitle("Bulinus truncatus") +
-      theme(axis.text.x = element_text(angle = 45, hjust = 1))
-dev.off()
-
+# Since model convergence failed at mod_9, it might be best to use mod_7 for the summary
+library(lme4)
+summary(mod_7)
+Anova.glmmTMB(mod_7)
+TukeyHSD(mod_7)
+emmeans(mod_7, ~ (locality | seas_wmo))
