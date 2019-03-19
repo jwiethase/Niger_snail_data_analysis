@@ -24,7 +24,7 @@ source("HighstatLibV10.R")
 setwd("..")
 
 #' ### Import and prepare the data set
-snaildf <- read.csv("Data/survey_para_merge_ALL_2018-10-13.csv") %>% 
+fulldf <- read.csv("Data/survey_para_merge_ALL_2018-10-13.csv") %>% 
   dplyr::select(filter.min, coll_date, month, passage_no, locality, site_irn, site_type_clean, BP_tot, BP_pos_tot, BF_tot, BF_pos_tot, 
                 BT_tot, BT_pos_tot, BG_tot, BS_tot, BT_prev, BF_prev, Bulinus_tot, Bulinus_pos_tot,
                 bp_pres, bt_pres, bf_pres,
@@ -37,6 +37,7 @@ snaildf <- read.csv("Data/survey_para_merge_ALL_2018-10-13.csv") %>%
   mutate(coll_date = lubridate::dmy(coll_date), tz = "Africa/Niger",
          duration = as.numeric(as.character(duration)),
          month = as.factor(month),
+         year = lubridate::year(coll_date),
          site_irn = as.factor(site_irn), 
          visit_no = as.factor(visit_no),
          bp_pres = as.factor(as.character(bp_pres)),
@@ -55,55 +56,55 @@ snaildf <- read.csv("Data/survey_para_merge_ALL_2018-10-13.csv") %>%
       group_by(site_irn) %>% 
       mutate(Latitude = mean(Latitude, na.rm = TRUE),
              Longitude = mean(Longitude, na.rm = TRUE))
-snaildf$Heure[snaildf$Heure == ""] <- NA
+fulldf$Heure[fulldf$Heure == ""] <- NA
 
 #' ### Explore the data, using the DataExplorer package
 #' Overview over the data
-plot_str(snaildf) + theme_few()
-introduce(snaildf)
+plot_str(fulldf) + theme_few()
+introduce(fulldf)
 
 #' Overview over missing values
-plot_missing(snaildf) + theme_few()
+plot_missing(fulldf) + theme_few()
 # For 33.5% of the data, information on the duration of sampling is missing. How is sampling duration distributed?
 # To decide how to deal with the missing values for duration, we need to know if the values are missing at complete random 
 # (in that case, removing them would not be an issue)
 
 # Is the duration more likely to be missing, given certain other values?
-snaildf$dur_missing <- ifelse(is.na(snaildf$duration), 1, 0)
+fulldf$dur_missing <- ifelse(is.na(fulldf$duration), 1, 0)
 miss_model <- glm(dur_missing ~ Temp_Air + BP_tot + BT_tot + BF_tot +
                         site_type, 
                   family = binomial,
-                  data = snaildf)
+                  data = fulldf)
 summary(miss_model) # Not really any strong effects
 
 # Remove NA values in duration, as well as predictors
-snaildf <- snaildf %>% 
+fulldf <- fulldf %>% 
       filter(Bulinus_tot < 1000, !is.na(duration))
 
 #' Overview over predictor variables
-plot_histogram(snaildf)  # Outliers in Cond, PPM, water_depth, wmo_prec, water_speed. These outliers will drive results. Look at them critically
+plot_histogram(fulldf)  # Outliers in Cond, PPM, water_depth, wmo_prec, water_speed. These outliers will drive results. Look at them critically
 
 #' Look closer at the outliers
 
 # 1: Cond
-plot(snaildf$Cond, snaildf$Bulinus_tot)
+plot(fulldf$Cond, fulldf$Bulinus_tot)
 
 # Where do these high values occur?
-snaildf$site_irn[snaildf$Cond > 6]   
-View(snaildf[snaildf$site_irn == 382877,] %>% dplyr::select(Cond, site_irn, water_depth, pH, PPM, everything()))
-View(snaildf[snaildf$site_irn == 487402,] %>% dplyr::select(Cond, site_irn, water_depth, pH, PPM, everything()))
+fulldf$site_irn[fulldf$Cond > 6]   
+View(fulldf[fulldf$site_irn == 382877,] %>% dplyr::select(Cond, site_irn, water_depth, pH, PPM, everything()))
+View(fulldf[fulldf$site_irn == 487402,] %>% dplyr::select(Cond, site_irn, water_depth, pH, PPM, everything()))
 
 # High Cond seem to coincide with high PPM, so it's not very likely that these are measurement outliers
 
 # 2: water_speed_ms
-plot(snaildf$water_speed_ms, snaildf$Bulinus_tot)  # One strong outlier
+plot(fulldf$water_speed_ms, fulldf$Bulinus_tot)  # One strong outlier
 
 # Where do these high values occur?
-snaildf$site_irn[snaildf$water_speed_ms > 3]   
-View(snaildf[snaildf$site_irn == 382867,] %>% dplyr::select(water_speed_ms, Cond, site_irn, water_depth, pH, PPM, everything()))
+fulldf$site_irn[fulldf$water_speed_ms > 3]   
+View(fulldf[fulldf$site_irn == 382867,] %>% dplyr::select(water_speed_ms, Cond, site_irn, water_depth, pH, PPM, everything()))
 
 # Is it generally an outlier, looking at all site types?
-plot(snaildf$site_type, snaildf$water_speed_ms)   # General outlier
+plot(fulldf$site_type, fulldf$water_speed_ms)   # General outlier
 
 # The measurement of 5 is possible, but a general outlier. It was the single measurement higher than 2, throughout
 # the whole study. Even though it is most likely a real measurement, the complete lack of other measurements
@@ -112,27 +113,34 @@ plot(snaildf$site_type, snaildf$water_speed_ms)   # General outlier
 # It might be best to exclude this observation from the data.
 
 # 2: wmo_prec
-plot(snaildf$wmo_prec, snaildf$Bulinus_tot)  # Many observations at most extreme precipitation
+plot(fulldf$wmo_prec, fulldf$Bulinus_tot)  # Many observations at most extreme precipitation
 
 # Where do these high values occur?
-View(snaildf[snaildf$wmo_prec > 60,] %>% dplyr::select(wmo_prec, seas_wmo, site_irn, water_depth, pH, PPM, everything()))  
+View(fulldf[fulldf$wmo_prec > 60,] %>% dplyr::select(wmo_prec, seas_wmo, site_irn, water_depth, pH, PPM, everything()))  
 
 # All outliers here come from the same, very rainy day at Lata Kabia (2014-08-02)
-ggplot(snaildf[snaildf$locality == "Lata Kabia",]) +
+ggplot(fulldf[fulldf$locality == "Lata Kabia",]) +
       geom_point(aes(x = as.factor(month), y = wmo_prec))
 
 #' Make a data frame with outliers removed
-snaildf_out <- snaildf %>% 
+fulldf_out <- fulldf %>% 
       dplyr::filter(water_speed_ms < 2,
                     Cond < 8)
 
+# Make data frame with all missing values remove in water variables
+chemdf <- fulldf %>% 
+      dplyr::filter(!is.na(pH), !is.na(Cond), !is.na(Temp_Water), !is.na(PPM), !is.na(pH),
+                    !is.na(water_depth), !is.na(water_speed_ms))
+chemdf_out <- chemdf %>% 
+      dplyr::filter(water_speed_ms < 2,
+                    Cond < 8)
 #' Are there any variance inflation factors (multicollinearity)? Check using a function from Zuur et al. 2010
 
-pairs(snaildf[,c("Temp_Air", "Temp_Water", "water_speed_ms", "water_depth", "pH", "Cond", "PPM",
-                 "wmo_av_temp", "Bulinus_tot", "wmo_prec", "site")],
+pairs(fulldf[,c("Temp_Air", "Temp_Water", "water_speed_ms", "water_depth", "pH", "Cond", "PPM",
+                 "wmo_av_temp", "Bulinus_tot", "wmo_prec")],
       lower.panel = panel.cor)
 
-corvif(as.data.table(snaildf)[, c("Temp_Air", "Temp_Water", "water_speed_ms", "water_depth", "pH", "Cond", "PPM",
+corvif(data.table::as.data.table(fulldf)[, c("Temp_Air", "Temp_Water", "water_speed_ms", "water_depth", "pH", "Cond", "PPM",
                                   "wmo_av_temp", "wmo_prec"), with=FALSE])
 
 # Cond and PPM have high GVIF values (10). For values of higher than 4, only one of the two variables should be used in models, 
@@ -140,7 +148,7 @@ corvif(as.data.table(snaildf)[, c("Temp_Air", "Temp_Water", "water_speed_ms", "w
 
 
 #' Look at general correlation matrix
-plot_correlation(na.omit(snaildf), maxcat = 5L)   
+plot_correlation(na.omit(fulldfc), maxcat = 5L)   
 
 
 # Study design:
@@ -173,13 +181,6 @@ plot_correlation(na.omit(snaildf), maxcat = 5L)
 ############################      Bulinus total      ####################################
 #########################################################################################
 
-#' How is the data distributed?
-ggplot(snaildf) +
-  geom_histogram(aes(Bulinus_tot)) +
-  theme_few() +
-  xlab("Snail count") +
-  facet_wrap(~locality, scales = "free", nrow = 2)
-
 # There are generally many zeroes. This doesn't mean that the data is zero-inflated, but it might be worth checking for zero-inflation anyways
 
 #' ### Make a GLMM
@@ -190,25 +191,31 @@ ggplot(snaildf) +
 # with log link (nbinom2)
 
 # Decide for a family. It's count count data, looking very overdispersed, so negative binomial is most likely appropriate
-poiss <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + locality + pH + water_speed_ms + water_depth + Cond + wmo_prec +
-                   Temp_Air + Temp_Water + site_type + seas_wmo + month +
-                   locality*seas_wmo + wmo_prec*seas_wmo + locality*month + site_type*seas_wmo +
+poiss <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no)  + 
+                       locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       Temp_Water + site_type + seas_wmo + 
+                       locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
+                       site_type*Cond + site_type*Temp_Water + site_type*pH  +
                    offset(log(duration)),
-                 data=snaildf,
+                 data=chemdf,
                  family=poisson)
 
-model <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + locality + pH + water_speed_ms + water_depth + Cond + wmo_prec +
-                   Temp_Air + Temp_Water + site_type + seas_wmo + month +
-                   locality*seas_wmo + wmo_prec*seas_wmo + locality*month + site_type*seas_wmo +
+model <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + 
+                       locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       Temp_Water + site_type + seas_wmo + 
+                       locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
+                       site_type*Cond + site_type*Temp_Water + site_type*pH +
                       offset(log(duration)),
-                 data=snaildf,
+                 data=chemdf,
                  family=nbinom1)
 
-model1 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
-                             Temp_Water + site_type + seas_wmo + month +
-                             locality*seas_wmo + wmo_prec*seas_wmo + locality*month + site_type*seas_wmo +
+model1 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) + 
+                        locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                        Temp_Water + site_type + seas_wmo + 
+                        locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
+                        site_type*Cond + site_type*Temp_Water + site_type*pH +
                              offset(log(duration)),
-                           data=snaildf,
+                           data=chemdf,
                            family=nbinom2)
 
 # Check which model fits best, based on AIC scores
