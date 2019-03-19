@@ -241,54 +241,76 @@ summary(model1)  # Next to no variance is coming from locality, so technically w
 #' Test significance of predictors
 # Use chisquare test on maximum model, to decide which term to remove first
 
-drop1(model1, test = "Chisq")        # wmo_prec:seas_wmo   1 10668  0.064 0.8009513  
+drop1(model1, test = "Chisq")        # Temp_Water:site_type  7 10408  3.398 0.8458894  
 
-model2 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + locality + pH + water_speed_ms + water_depth + Cond + wmo_prec +
-                    Temp_Air + Temp_Water + site_type + seas_wmo + month +
-                    locality*seas_wmo + locality*month + site_type*seas_wmo +
-                    offset(log(duration)),
-                  data=snaildf,
+model2 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) + 
+                        locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                        Temp_Water + site_type + seas_wmo + 
+                        locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
+                        site_type*Cond + site_type*pH +
+                        offset(log(duration)),
+                  data=chemdf,
                   family=nbinom2)
-drop1(model2, test = "Chisq")        # pH                  1 10666  0.293 0.5880312
+drop1(model2, test = "Chisq")        # pH:site_type        7 10399  5.205 0.6349038 
 
-model3 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + locality + water_speed_ms + water_depth + Cond + wmo_prec +
-                    Temp_Air + Temp_Water + site_type + seas_wmo + month +
-                    locality*seas_wmo + locality*month + site_type*seas_wmo +
-                    offset(log(duration)),
-                  data=snaildf,
+model3 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) + 
+                        locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                        Temp_Water + site_type + seas_wmo + 
+                        locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
+                        site_type*Cond +
+                        offset(log(duration)),
+                  data=chemdf,
                   family=nbinom2)
-drop1(model3, test = "Chisq")        # wmo_prec            1 10666  1.534 0.2155185
+drop1(model3, test = "Chisq")        # pH                  1 10397  0.090 0.7635879   
 
-model4 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + locality + water_speed_ms + water_depth + Cond +
-                    Temp_Air + Temp_Water + site_type + seas_wmo + month +
-                    locality*seas_wmo + locality*month + site_type*seas_wmo +
-                    offset(log(duration)),
-                  data=snaildf,
+model4 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) + 
+                        locality + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                        Temp_Water + site_type + seas_wmo + 
+                        locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
+                        site_type*Cond +
+                        offset(log(duration)),
+                  data=chemdf,
                   family=nbinom2)
-drop1(model4, test = "Chisq")        # Cond                1 10666  1.705 0.1916683 
+drop1(model4, test = "Chisq")        # water_depth         1 10396  1.202 0.2729720  
 
-model5 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + locality + water_speed_ms + water_depth +
-                    Temp_Air + Temp_Water + site_type + seas_wmo + month +
-                    locality*seas_wmo + locality*month + site_type*seas_wmo +
-                    offset(log(duration)),
-                  data=snaildf,
+model5 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) + 
+                        locality + water_speed_ms + water_level + Cond + wmo_prec +
+                        Temp_Water + site_type + seas_wmo +
+                        locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
+                        site_type*Cond +
+                        offset(log(duration)),
+                  data=chemdf,
                   family=nbinom2)
-drop1(model5, test = "Chisq")        # water_depth         1 10666  2.248 0.1338204  
+drop1(model5, test = "Chisq")      # Temp_Water          1 10396  1.799  0.179807  
+MASS::dropterm(model5, test = "Chisq")
 
-model6 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + locality + water_speed_ms +
-                    Temp_Air + Temp_Water + site_type + seas_wmo + month +
-                    locality*seas_wmo + locality*month + site_type*seas_wmo +
-                    offset(log(duration)),
-                  data=snaildf,
+model6 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) + 
+                        locality + water_speed_ms + water_level + Cond + wmo_prec +
+                        site_type + seas_wmo +
+                        locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
+                        site_type*Cond +
+                        offset(log(duration)),
+                  data=chemdf,
                   family=nbinom2)
-drop1(model6, test = "Chisq")        # water_depth         1 10666  2.248 0.1338204  
+drop1(model6, test = "Chisq")      # water_speed_ms      1 10397  3.103 0.0781317 .  
 
-  # water_speed_ms      1 10670  6.018 0.0141583 *  
-  # Temp_Air            1 10670  6.326 0.0118976 *  
-  # Temp_Water          1 10677 12.727 0.0003603 ***
-  # locality:seas_wmo  18 10668 37.863 0.0040386 ** 
-  # locality:month     18 10664 33.961 0.0127358 *  
-  # site_type:seas_wmo  7 10671 18.633 0.0094164 ** 
+model7 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) + 
+                        locality + water_level + Cond + wmo_prec +
+                        site_type + seas_wmo +
+                        locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
+                        site_type*Cond +
+                        offset(log(duration)),
+                  data=chemdf,
+                  family=nbinom2)
+drop1(model7, test = "Chisq")      #
+confint(model7, method = "uniroot")
+
+
+      # water_level         3 10439 48.044 2.084e-10 ***
+      # locality:seas_wmo  19 10403 43.948 0.0009601 ***
+      # site_type:seas_wmo  7 10408 25.139 0.0007170 ***
+      # wmo_prec:site_type  7 10399 15.642 0.0285935 *  
+      # Cond:site_type      7 10403 19.527 0.0066868 ** 
   
 summary(model6)
 glmmTMB::Anova.glmmTMB(model6)
@@ -296,13 +318,8 @@ sim_residuals6 <- DHARMa::simulateResiduals(model6, 1000)
 plot(sim_residuals6)
 # Could the effect of water temperature have something to do with water depth? Consider interaction.
 
-model7 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + locality + water_speed_ms + water_depth +
-                    Temp_Air + Temp_Water + site_type + seas_wmo + month +
-                    locality*seas_wmo + locality*month + site_type*seas_wmo + water_speed_ms*Temp_Water +
-                    offset(log(duration)),
-                  data=snaildf,
-                  family=nbinom2)
-drop1(model7, test = "Chisq")        # 
+
+
 
 #'<br><br>
 #'
