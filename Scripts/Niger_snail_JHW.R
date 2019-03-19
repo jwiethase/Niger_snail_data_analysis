@@ -202,13 +202,7 @@ model1 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + locality + pH +
                              offset(log(duration)),
                            data=snaildf,
                            family=nbinom2)
-test <- glmmTMB(Bulinus_tot ~ (1|visit_no) + locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
-                        Temp_Water + site_type + seas_wmo + month +
-                        locality*seas_wmo + wmo_prec*seas_wmo + locality*month + site_type*seas_wmo +
-                        offset(log(duration)),
-                  data=snaildf,
-                  family=nbinom2)
-drop1(model1, test = "Chisq")
+
 # Check which model fits best, based on AIC scores
 anova(poiss, model, model1) # model and model1 have the same AICs, better than poiss
 
