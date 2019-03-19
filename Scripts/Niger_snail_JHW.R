@@ -32,7 +32,8 @@ snaildf <- read.csv("Data/survey_para_merge_ALL_2018-10-13.csv") %>%
                 wmo_min_temp, wmo_max_temp, wmo_av_temp, wmo_prec, seas_wmo, duration, Heure) %>% 
   rename(visit_no = passage_no, Temp_Water = Temp_Eau, water_level = w_level_ed, site_type = site_type_clean) %>% 
   # Remove NA values in predictor variables
-  dplyr::filter(Bulinus_tot <= 1000) %>% 
+  dplyr::filter(Bulinus_tot <= 1000,
+                !is.na(site_irn)) %>% 
   mutate(coll_date = lubridate::dmy(coll_date), tz = "Africa/Niger",
          duration = as.numeric(as.character(duration)),
          month = as.factor(month),
@@ -50,9 +51,11 @@ snaildf <- read.csv("Data/survey_para_merge_ALL_2018-10-13.csv") %>%
   filter(filter.min != "y") %>% 
       # Rescale variables with large values, change water depth unit to meters
       mutate(Cond = scale(Cond, center = 0),
-             water_depth = water_depth/100)
+             water_depth = water_depth/100) %>% 
+      group_by(site_irn) %>% 
+      mutate(Latitude = mean(Latitude, na.rm = TRUE),
+             Longitude = mean(Longitude, na.rm = TRUE))
 snaildf$Heure[snaildf$Heure == ""] <- NA
-
 
 #' ### Explore the data, using the DataExplorer package
 #' Overview over the data
