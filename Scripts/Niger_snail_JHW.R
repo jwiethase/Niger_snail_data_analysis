@@ -65,11 +65,16 @@ introduce(snaildf)
 #' Overview over missing values
 plot_missing(snaildf) + theme_few()
 # For 33.5% of the data, information on the duration of sampling is missing. How is sampling duration distributed?
+# To decide how to deal with the missing values for duration, we need to know if the values are missing at complete random 
+# (in that case, removing them would not be an issue)
 
-ggplot(snaildf) +
-      geom_histogram(aes(duration)); summary(snaildf$duration)
-# Variation in sampling duration is not too big. However, missing values could still be between 5 and 50 
-# minutes of sampling, which would affect the snail counts. 
+# Is the duration more likely to be missing, given certain other values?
+snaildf$dur_missing <- ifelse(is.na(snaildf$duration), 1, 0)
+miss_model <- glm(dur_missing ~ Temp_Air + BP_tot + BT_tot + BF_tot +
+                        site_type, 
+                  family = binomial,
+                  data = snaildf)
+summary(miss_model) # Not really any strong effects
 
 # Remove NA values in duration, as well as predictors
 snaildf <- snaildf %>% 
