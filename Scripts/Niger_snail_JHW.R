@@ -35,6 +35,7 @@ snaildf <- read.csv("Data/survey_para_merge_ALL_2018-10-13.csv") %>%
   dplyr::filter(Bulinus_tot <= 1000) %>% 
   mutate(coll_date = lubridate::dmy(coll_date), tz = "Africa/Niger",
          duration = as.numeric(as.character(duration)),
+         month = as.factor(month),
          site_irn = as.factor(site_irn), 
          visit_no = as.factor(visit_no),
          bp_pres = as.factor(as.character(bp_pres)),
@@ -92,12 +93,30 @@ plot(snaildf$water_speed_ms, snaildf$Bulinus_tot)  # One strong outlier
 # Where do these high values occur?
 snaildf$site_irn[snaildf$water_speed_ms > 3]   
 View(snaildf[snaildf$site_irn == 382867,] %>% dplyr::select(water_speed_ms, Cond, site_irn, water_depth, pH, PPM, everything()))
-plot(snaildf$site_type, snaildf$water_speed_ms)
 
 # Is it generally an outlier, looking at all site types?
-plot_correlation(na.omit(snaildf), maxcat = 5L)   # General outlier
+plot(snaildf$site_type, snaildf$water_speed_ms)   # General outlier
 
+# The measurement of 5 is possible, but a general outlier. It was the single measurement higher than 2, throughout
+# the whole study. Even though it is most likely a real measurement, the complete lack of other measurements
+# in that range means that it is hard to say that this is an actual representation of counts at high water speeds,
+# yet the measurement looks like it's a highly influential outliers, due to its position and high leverage.
+# It might be best to exclude this observation from the data.
 
+# 2: wmo_prec
+plot(snaildf$wmo_prec, snaildf$Bulinus_tot)  # Many observations at most extreme precipitation
+
+# Where do these high values occur?
+View(snaildf[snaildf$wmo_prec > 60,] %>% dplyr::select(wmo_prec, seas_wmo, site_irn, water_depth, pH, PPM, everything()))  
+
+# All outliers here come from the same, very rainy day at Lata Kabia (2014-08-02)
+ggplot(snaildf[snaildf$locality == "Lata Kabia",]) +
+      geom_point(aes(x = as.factor(month), y = wmo_prec))
+
+#' Make a data frame with outliers removed
+snaildf_out <- snaildf %>% 
+      dplyr::filter(water_speed_ms < 2,
+                    Cond < 8)
 
 #' Are there any variance inflation factors (multicollinearity)? Check using a function from Zuur et al. 2010
 
@@ -107,8 +126,14 @@ pairs(snaildf[,c("Temp_Air", "Temp_Water", "water_speed_ms", "water_depth", "pH"
 
 corvif(as.data.table(snaildf)[, c("Temp_Air", "Temp_Water", "water_speed_ms", "water_depth", "pH", "Cond", "PPM",
                                   "wmo_av_temp", "wmo_prec"), with=FALSE])
+
 # Cond and PPM have high GVIF values (10). For values of higher than 4, only one of the two variables should be used in models, 
 # to avoid multicollinearity. 
+
+
+#' Look at general correlation matrix
+plot_correlation(na.omit(snaildf), maxcat = 5L)   
+
 
 # Study design:
 # I have count data of snails per date, counted over many dates at sites, nested in localities.
@@ -171,13 +196,19 @@ model <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + locality + pH + 
                  data=snaildf,
                  family=nbinom1)
 
-model1 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + locality + pH + water_speed_ms + water_depth + Cond + wmo_prec +
-                             Temp_Air + Temp_Water + site_type + seas_wmo + month +
+model1 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                             Temp_Water + site_type + seas_wmo + month +
                              locality*seas_wmo + wmo_prec*seas_wmo + locality*month + site_type*seas_wmo +
                              offset(log(duration)),
                            data=snaildf,
                            family=nbinom2)
-
+test <- glmmTMB(Bulinus_tot ~ (1|visit_no) + locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                        Temp_Water + site_type + seas_wmo + month +
+                        locality*seas_wmo + wmo_prec*seas_wmo + locality*month + site_type*seas_wmo +
+                        offset(log(duration)),
+                  data=snaildf,
+                  family=nbinom2)
+drop1(model1, test = "Chisq")
 # Check which model fits best, based on AIC scores
 anova(poiss, model, model1) # model and model1 have the same AICs, better than poiss
 
@@ -191,7 +222,7 @@ plot(sim_residuals1)  # Good fit
 sim_residuals2 <- DHARMa::simulateResiduals(model1, 1000) 
 plot(sim_residuals2)  # Virtually the same. Difference between nbinom1 and nbinom2 seems neglible
 
-testZeroInflation(sim_residuals1)  # There is no evidence for zero-inflation
+testZeroInflation(sim_residuals2)  # There is no evidence for zero-inflation
 
 # Look at the model
 
@@ -422,6 +453,11 @@ mod_l <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + water_depth 
                  family=nbinom2) # No convergence problems
 drop1(mod_l, test = "Chisq")  # water_depth  1 787.42 0.098649   0.7535
 
+mod_m <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + water_level + 
+                       offset(log(duration)),
+                 data=snaildf,
+                 family=nbinom2) # No convergence problems
+drop1(mod_m, test = "Chisq")  # water_depth  1 787.42 0.098649   0.7535
 
 #'<br><br>
 #'
