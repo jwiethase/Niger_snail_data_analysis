@@ -10,7 +10,7 @@ library(glmmTMB)
 library(ggthemes)
 library(DHARMa) # for model diagnostics
 library(emmeans)  # for post hoc test
-
+library(DataExplorer)   # for data exploration
 
 
 # Change font size and ggthemes globally
@@ -32,19 +32,14 @@ snaildf <- read.csv("Data/survey_para_merge_ALL_2018-10-13.csv") %>%
                 wmo_min_temp, wmo_max_temp, wmo_av_temp, wmo_prec, seas_wmo, duration, Heure) %>% 
   rename(visit_no = passage_no, Temp_Water = Temp_Eau, water_level = w_level_ed, site_type = site_type_clean) %>% 
   # Remove NA values in predictor variables
-  dplyr::filter(Bulinus_tot <= 1000
-                ,!is.na(BT_tot),
-                !is.na(Temp_Air), !is.na(water_speed_ms), !is.na(water_depth), !is.na(pH), !is.na(PPM),
-                !is.na(wmo_av_temp), !is.na(wmo_prec), !is.na(Stagnante), !is.na(site_type), !is.na(site_irn),
-                !is.na(Temp_Water)
-                , duration != "") %>% 
+  dplyr::filter(Bulinus_tot <= 1000) %>% 
   mutate(coll_date = lubridate::dmy(coll_date), tz = "Africa/Niger",
          duration = as.numeric(as.character(duration)),
          site_irn = as.factor(site_irn), 
          visit_no = as.factor(visit_no),
          bp_pres = as.factor(as.character(bp_pres)),
-         bf_pres = as.factor(as.character(bf_pres))) %>% 
-  filter(!is.na(duration)) %>% 
+         bf_pres = as.factor(as.character(bf_pres)),
+         Heure = as.factor(as.character(Heure))) %>% 
   # Re-arrange the columns
   dplyr::select(locality, site_irn, visit_no, Bulinus_tot, Bulinus_pos_tot, coll_date, everything()) %>% 
   arrange(locality, site_irn) %>% 
@@ -52,22 +47,57 @@ snaildf <- read.csv("Data/survey_para_merge_ALL_2018-10-13.csv") %>%
   # very high variance, when we're looking at interactions containing the season variable.
   # For now, remove this site from the analysis.
   filter(filter.min != "y") %>% 
-      # Rescale variables with large values
+      # Rescale variables with large values, change water depth unit to meters
       mutate(Cond = scale(Cond, center = 0),
-             water_depth = scale(water_depth, center = 0))
+             water_depth = water_depth/100)
+snaildf$Heure[snaildf$Heure == ""] <- NA
 
-#' ### Explore the data
-#' How uniform was the sampling effort (duration of sampling)?
-tiff(file="Figures/sampling_effort.tiff", width = 166, height = 166, units = "mm", res = 150)
+
+#' ### Explore the data, using the DataExplorer package
+#' Overview over the data
+plot_str(snaildf) + theme_few()
+introduce(snaildf)
+
+#' Overview over missing values
+plot_missing(snaildf) + theme_few()
+# For 33.5% of the data, information on the duration of sampling is missing. How is sampling duration distributed?
+
 ggplot(snaildf) +
-  geom_line(aes(x = as.factor(visit_no), y = duration, group = locality), alpha = .2) +
-  geom_point(aes(x = as.factor(visit_no), y = duration, group = locality), pch = 23, fill = "white", cex = 1) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  facet_wrap(~locality) +
-  ggtitle("Sampling effort")
-dev.off()
+      geom_histogram(aes(duration)); summary(snaildf$duration)
+# Variation in sampling duration is not too big. However, missing values could still be between 5 and 50 
+# minutes of sampling, which would affect the snail counts. 
 
-# There was a lot of variation. Since sampling time most likely influences counts, this needs to be integrated in the analylsis
+# Remove NA values in duration, as well as predictors
+snaildf <- snaildf %>% 
+      filter(Bulinus_tot < 1000, !is.na(duration))
+
+#' Overview over predictor variables
+plot_histogram(snaildf)  # Outliers in Cond, PPM, water_depth, wmo_prec, water_speed. These outliers will drive results. Look at them critically
+
+#' Look closer at the outliers
+
+# 1: Cond
+plot(snaildf$Cond, snaildf$Bulinus_tot)
+
+# Where do these high values occur?
+snaildf$site_irn[snaildf$Cond > 6]   
+View(snaildf[snaildf$site_irn == 382877,] %>% dplyr::select(Cond, site_irn, water_depth, pH, PPM, everything()))
+View(snaildf[snaildf$site_irn == 487402,] %>% dplyr::select(Cond, site_irn, water_depth, pH, PPM, everything()))
+
+# High Cond seem to coincide with high PPM, so it's not very likely that these are measurement outliers
+
+# 2: water_speed_ms
+plot(snaildf$water_speed_ms, snaildf$Bulinus_tot)  # One strong outlier
+
+# Where do these high values occur?
+snaildf$site_irn[snaildf$water_speed_ms > 3]   
+View(snaildf[snaildf$site_irn == 382867,] %>% dplyr::select(water_speed_ms, Cond, site_irn, water_depth, pH, PPM, everything()))
+plot(snaildf$site_type, snaildf$water_speed_ms)
+
+# Is it generally an outlier, looking at all site types?
+plot_correlation(na.omit(snaildf), maxcat = 5L)   # General outlier
+
+
 
 #' Are there any variance inflation factors (multicollinearity)? Check using a function from Zuur et al. 2010
 
@@ -122,7 +152,9 @@ ggplot(snaildf) +
 #' ### Make a GLMM
 
 #' Make a maximum model. glmmTMB is a new package by Ben Bolker, that fits models faster, and allows to include arguments
-# to account for zero-inflation, if needed
+# to account for zero-inflation, if needed.
+# Include the sampling duration as an offset. It needs to be specified as log(), since we are using a family distribution
+# with log link (nbinom2)
 
 # Decide for a family. It's count count data, looking very overdispersed, so negative binomial is most likely appropriate
 poiss <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + locality + pH + water_speed_ms + water_depth + Cond + wmo_prec +
@@ -335,7 +367,7 @@ testZeroInflation(sim_res_modb)  # Not zero-inflated.
 testZeroInflation(sim_res_modc)  # Not zero-inflated.
 
 # Use mod_c, remove terms untl no more convergence problems
-mod_d <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + locality + 
+mod_d <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + locality +
                        offset(log(duration)),
                  data=snaildf2,
                  family=nbinom2) # No convergence problems
@@ -490,8 +522,33 @@ mod_9 <- glmer.nb(BT_tot ~ (1|locality/site_irn/visit_no) + locality + water_spe
 drop1(mod_9, test = "Chisq")  # Nothing to remove
 
 # Since model convergence failed at mod_9, it might be best to use mod_7 for the summary
-library(lme4)
 summary(mod_7)
 Anova.glmmTMB(mod_7)
 TukeyHSD(mod_7)
 emmeans(mod_7, ~ (locality | seas_wmo))
+
+#'<br><br>
+#'
+#'--------------------------------------------------------------------------------------------
+#'--------------------------------------------------------------------------------------------
+#'
+#'
+#'--------------------------------------------------------------------------------------------
+#'--------------------------------------------------------------------------------------------
+#'
+#'
+#########################################################################################
+########################      Bulinus forskalii total      ##############################
+#########################################################################################
+# Start with a model containing some main effects, add predictors step-by-step
+mod_A <- glmmTMB(BF_tot ~ (1|locality/site_irn/visit_no) + locality + water_speed_ms + Cond + wmo_prec +
+                       site_type + seas_wmo + 
+                       offset(log(duration)),
+                 data=snaildf,
+                 family=nbinom2) 
+mod_B <- glmmTMB(BF_tot ~ (1|locality/site_irn/visit_no) + locality + water_speed_ms + Cond + wmo_prec +
+                       site_type + seas_wmo + bp_pres + bf_pres +
+                       offset(log(duration)),
+                 data=snaildf,
+                 family=nbinom2) 
+anova(mod_A, mod_B)
