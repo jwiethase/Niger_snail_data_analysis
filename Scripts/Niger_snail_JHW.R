@@ -16,6 +16,9 @@ library(DataExplorer)   # for data exploration
 # Change font size and ggthemes globally
 theme_set(ggthemes::theme_few(base_size = 8))
 
+# Change globally how numbers are displayed
+options("scipen"=100, "digits"=4)
+
 # Set working directory to source file location
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))  
 
@@ -58,11 +61,6 @@ fulldf <- read.csv("Data/survey_para_merge_ALL_2018-10-13.csv") %>%
              Longitude = mean(Longitude, na.rm = TRUE))
 fulldf$Heure[fulldf$Heure == ""] <- NA
 
-#' ### Explore the data, using the DataExplorer package
-#' Overview over the data
-plot_str(fulldf) + theme_few()
-introduce(fulldf)
-
 #' Overview over missing values
 plot_missing(fulldf) + theme_few()
 # For 33.5% of the data, information on the duration of sampling is missing. How is sampling duration distributed?
@@ -77,9 +75,17 @@ miss_model <- glm(dur_missing ~ Temp_Air + BP_tot + BT_tot + BF_tot +
                   data = fulldf)
 summary(miss_model) # Not really any strong effects
 
+
+
+################################################################################################################################
 # Remove NA values in duration, as well as predictors
 fulldf <- fulldf %>% 
       filter(Bulinus_tot < 1000, !is.na(duration))
+################################################################################################################################
+
+#' Overview over the data structure
+plot_str(fulldf) + theme_few()
+introduce(fulldf)
 
 #' Overview over predictor variables
 plot_histogram(fulldf)  # Outliers in Cond, PPM, water_depth, wmo_prec, water_speed. These outliers will drive results. Look at them critically
@@ -294,7 +300,7 @@ model6 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) +
                   family=nbinom2)
 drop1(model6, test = "Chisq")      # water_speed_ms      1 10397  3.103 0.0781317 .  
 
-model7 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) + 
+model7 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) +
                         locality + water_level + Cond + wmo_prec +
                         site_type + seas_wmo +
                         locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
@@ -303,9 +309,9 @@ model7 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) +
                   data=chemdf,
                   family=nbinom2)
 drop1(model7, test = "Chisq")      #
-confint(model7, method = "uniroot")
+confint(model7)
 
-
+lsmeans(model7, ~Cond)
       # water_level         3 10439 48.044 2.084e-10 ***
       # locality:seas_wmo  19 10403 43.948 0.0009601 ***
       # site_type:seas_wmo  7 10408 25.139 0.0007170 ***
