@@ -243,6 +243,11 @@ testZeroInflation(sim_residuals2)  # There is no evidence for zero-inflation
 
 summary(model1)  # Next to no variance is coming from locality, so technically we could exclude this from the model.
                  # Aesthetically, we can keep it in, to highlight the nested design of the study
+                 
+# Standard errors for Kohan Garantche:seas_wmowet are huge. Try to find out why
+View(fulldf[fulldf$locality == "Kohan Garantche",] %>% dplyr::select(seas_wmo, locality, Bulinus_tot, everything()))
+# There were many snails in the dry season, but zero in the wet season. This inflates the standard error hugely.
+# Model fits can still be used, but standard errors will be inflated.
 
 #' Test significance of predictors
 # Use chisquare test on maximum model, to decide which term to remove first
@@ -306,26 +311,24 @@ model7 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) +
                         locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
                         site_type*Cond +
                         offset(log(duration)),
-                  data=chemdf,
+                  data=chemdf[chemdf$locality != "Kohan Garantche",],
                   family=nbinom2)
 drop1(model7, test = "Chisq")      #
 confint(model7)
 
-lsmeans(model7, ~Cond)
+lsmeans(model1, ~water_level)
       # water_level         3 10439 48.044 2.084e-10 ***
       # locality:seas_wmo  19 10403 43.948 0.0009601 ***
       # site_type:seas_wmo  7 10408 25.139 0.0007170 ***
       # wmo_prec:site_type  7 10399 15.642 0.0285935 *  
       # Cond:site_type      7 10403 19.527 0.0066868 ** 
   
-summary(model6)
-glmmTMB::Anova.glmmTMB(model6)
-sim_residuals6 <- DHARMa::simulateResiduals(model6, 1000) 
-plot(sim_residuals6)
-# Could the effect of water temperature have something to do with water depth? Consider interaction.
+summary(model7)
+glmmTMB::Anova.glmmTMB(model7)
+sim_residuals7 <- DHARMa::simulateResiduals(model7, 1000) 
+plot(sim_residuals7)
 
-
-
+emmip(model7, site_type ~ seas_wmo)
 
 #'<br><br>
 #'
@@ -355,41 +358,10 @@ plot(sim_residuals6)
 # This is appropriate. Some zero positive counts might be because some snails just didn't get infected, but some zero counts 
 # might be because there were no schistosomes in the water, so no chance of infection to begin with.
 
-snaildf2 <- read.csv("Data/survey_para_merge_ALL_2018-10-13.csv") %>% 
-      dplyr::select(filter.min, coll_date, month, passage_no, locality, site_irn, site_type_clean, BP_tot, BP_pos_tot, BF_tot, BF_pos_tot, 
-                    BT_tot, BT_pos_tot, BG_tot, BS_tot, BT_prev, BF_prev, Bulinus_tot, Bulinus_pos_tot,
-                    Temp_Air, Temp_Eau,w_level_ed, water_speed_ms, water_depth, pH, Cond, PPM, Latitude, Longitude, Stagnante,
-                    wmo_min_temp, wmo_max_temp, wmo_av_temp, wmo_prec, seas_wmo, duration, Heure) %>% 
-      rename(visit_no = passage_no, Temp_Water = Temp_Eau, water_level = w_level_ed, site_type = site_type_clean) %>% 
-      # Remove NA values in predictor variables
-      dplyr::filter(Bulinus_tot <= 1000,!is.na(site_type), !is.na(site_irn), !is.na(seas_wmo)
-                    , duration != "") %>% 
-      mutate(coll_date = lubridate::dmy(coll_date), tz = "Africa/Niger",
-             duration = as.numeric(as.character(duration)),
-             site_irn = as.factor(site_irn), 
-             visit_no = as.factor(visit_no)) %>% 
-      filter(!is.na(duration)) %>% 
-      # Re-arrange the columns
-      dplyr::select(Bulinus_pos_tot, locality, site_irn, visit_no, coll_date, seas_wmo, everything()) %>% 
-      arrange(locality, site_irn) %>% 
-      # This site has no measurements in the wet season, and a lot in the dry season. Later in the models, this leads to 
-      # very high variance, when we're looking at interactions containing the season variable.
-      # For now, remove this site from the analysis.
-      filter(locality != "Kohan Garantche", filter.min != "y")
-
-
-ggplot(snaildf2) +
-  geom_histogram(aes(Bulinus_pos_tot), binwidth = .5, position = position_dodge()) +
-  theme_few() +
-  xlab("Snail count") +
-  facet_wrap(~locality, scales = "free", nrow = 2)
-
-
-
 mod_a <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + locality + site_type + seas_wmo + 
                        locality*seas_wmo + site_type*seas_wmo +
                    offset(log(duration)),
-                 data=snaildf2,
+                 data=fulldf,
                  family=poisson)
 
 # Model convergence problem; non-positive-definite Hessian matrix.
@@ -401,13 +373,13 @@ mod_a <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + locality + s
 mod_b <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + locality + site_type + seas_wmo + 
                        locality*seas_wmo + site_type*seas_wmo +
                        offset(log(duration)),
-                 data=snaildf2,
+                 data=fulldf,
                  family=nbinom1) # Many convergence problems
 
 mod_c <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + locality + site_type + seas_wmo + 
                        locality*seas_wmo + site_type*seas_wmo +
                        offset(log(duration)),
-                 data=snaildf2,
+                 data=fulldf,
                  family=nbinom2) # Some convergence problems
 
 # Check overdispersion
@@ -432,41 +404,47 @@ testZeroInflation(sim_res_modc)  # Not zero-inflated.
 # Use mod_c, remove terms untl no more convergence problems
 mod_d <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + locality +
                        offset(log(duration)),
-                 data=snaildf2,
+                 data=fulldf,
                  family=nbinom2) # No convergence problems
 drop1(mod_d, test = "Chisq")  # locality 18 861.01 37.543  0.00445 **
 summary(mod_d)
-mod_e <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + seas_wmo + 
+mod_e <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + seas_wmo + site_type*seas_wmo +
+                       offset(log(duration)),
+                 data=fulldf,
+                 family=nbinom2) # No convergence problems
+drop1(mod_e, test = "Chisq")  # seas_wmo:site_type  7 867 9.35     0.23
+
+mod_f <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + seas_wmo +
+                       offset(log(duration)),
+                 data=fulldf,
+                 family=nbinom2) # No convergence problems
+drop1(mod_f, test = "Chisq")  # seas_wmo  1 862 0.148      0.7
+
+mod_g <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + site_type + 
                        offset(log(duration)),
                  data=snaildf2,
                  family=nbinom2) # No convergence problems
-drop1(mod_e, test = "Chisq")  # seas_wmo  1 861.01 0.15887   0.6902
+drop1(mod_g, test = "Chisq")  # site_type  7 861.01 10.324   0.1709
 
-mod_f <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + site_type + 
-                       offset(log(duration)),
-                 data=snaildf2,
-                 family=nbinom2) # No convergence problems
-drop1(mod_f, test = "Chisq")  # site_type  7 861.01 10.324   0.1709
-
-mod_g <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + Cond + 
+mod_h <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + Cond + 
                        offset(log(duration)),
                  data=snaildf,
                  family=nbinom2) # No convergence problems
-drop1(mod_g, test = "Chisq")  # Cond    1 787.42 0.99221   0.3192
+drop1(mod_h, test = "Chisq")  # Cond    1 787.42 0.99221   0.3192
 
-mod_h <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + pH +
+mod_i <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + pH +
                        offset(log(duration)),
                  data=snaildf,
                  family=nbinom2) # Convergence problems
 plot(snaildf$pH, snaildf$Bulinus_pos_tot)    # Maybe nonlinear relationship?
 
-mod_i <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + PPM + 
+mod_j <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + PPM + 
                        offset(log(duration)),
                  data=snaildf,
                  family=nbinom2) # No convergence problems
-drop1(mod_i, test = "Chisq")  # PPM     1 787.42 0.64707   0.4212
+drop1(mod_j, test = "Chisq")  # PPM     1 787.42 0.64707   0.4212
 
-mod_j <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + wmo_prec + 
+mod_k <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + wmo_prec + 
                        offset(log(duration)),
                  data=snaildf,
                  family=nbinom2) # No convergence problems
@@ -483,13 +461,13 @@ mod_l <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + water_depth 
                        offset(log(duration)),
                  data=snaildf,
                  family=nbinom2) # No convergence problems
-drop1(mod_l, test = "Chisq")  # water_depth  1 787.42 0.098649   0.7535
+drop1(mod_k, test = "Chisq")  # water_depth  1 787.42 0.098649   0.7535
 
-mod_m <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + water_level + 
+mod_l <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + water_level + 
                        offset(log(duration)),
                  data=snaildf,
                  family=nbinom2) # No convergence problems
-drop1(mod_m, test = "Chisq")  # water_depth  1 787.42 0.098649   0.7535
+drop1(mod_l, test = "Chisq")  # water_depth  1 787.42 0.098649   0.7535
 
 #'<br><br>
 #'
@@ -505,95 +483,68 @@ drop1(mod_m, test = "Chisq")  # water_depth  1 787.42 0.098649   0.7535
 ########################      Bulinus truncatus total      ##############################
 #########################################################################################
 # Include other species present yes/no
-mod_1 <- glmmTMB(BT_tot ~ (1|locality/site_irn/visit_no) + locality + pH + water_speed_ms + water_depth + Cond + wmo_prec +
-                   Temp_Air + Temp_Water + site_type + seas_wmo + month + bp_pres + bf_pres + bp_pres*bf_pres +
-                   locality*seas_wmo + wmo_prec*seas_wmo + locality*month + site_type*seas_wmo + water_speed_ms*Temp_Water +
-                   water_depth*water_speed_ms +
-                   offset(log(duration)),
-                 data=snaildf,
-                 family=nbinom2) # Model convergence problem; extreme or very small eigen values detected
+mod_1 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) + 
+locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+      Temp_Water + site_type + seas_wmo + BP_tot + BF_tot + BP_tot*BF_tot +
+      locality*seas_wmo + site_type*seas_wmo + site_type*Temp_Water + site_type*pH +
+      offset(log(duration)),
+data=chemdf,
+family=nbinom2)
 
-# Removing 'month' from the model resolves this problem
-mod_2 <- glmmTMB(BT_tot ~ (1|locality/site_irn/visit_no) + locality + pH + water_speed_ms + water_depth + Cond + wmo_prec +
-                       Temp_Air + Temp_Water + site_type + seas_wmo + bp_pres + bf_pres + bp_pres*bf_pres +
-                       locality*seas_wmo + wmo_prec*seas_wmo + site_type*seas_wmo + water_speed_ms*Temp_Water +
-                       water_depth*water_speed_ms +
-                       offset(log(duration)),
-                 data=snaildf,
-                 family=nbinom2) # No more model convergence problems
-
-
-sim_res_mod1 <- DHARMa::simulateResiduals(mod_2, 1000)
+summary(mod_1)
+sim_res_mod1 <- DHARMa::simulateResiduals(mod_1, 1000)
 plot(sim_res_mod1)  # Not overdispersed.
 testZeroInflation(sim_res_mod1)  # No zero-inflation. 
 
-drop1(mod_2, test = "Chisq")   # Temp_Air                    1 8229.9  0.005 0.943678  
+drop1(mod_1, test = "Chisq")   # pH:site_type          7 8215  5.1    0.65174
 
-mod_3 <- glmmTMB(BT_tot ~ (1|locality/site_irn/visit_no) + locality + pH + water_speed_ms + water_depth + Cond + wmo_prec +
-                       Temp_Water + site_type + seas_wmo + bp_pres + bf_pres + bp_pres*bf_pres +
-                       locality*seas_wmo + wmo_prec*seas_wmo + site_type*seas_wmo + water_speed_ms*Temp_Water +
-                       water_depth*water_speed_ms +
+mod_2 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) + 
+                       locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       Temp_Water + site_type + seas_wmo + BP_tot + BF_tot + BP_tot*BF_tot +
+                       locality*seas_wmo + site_type*seas_wmo + site_type*Temp_Water +
                        offset(log(duration)),
-                 data=snaildf,
+                 data=chemdf,
                  family=nbinom2)
-drop1(mod_3, test = "Chisq")   # water_speed_ms:Temp_Water   1 8229.7  1.804 0.179283   
+drop1(mod_2, test = "Chisq")   # pH                    1 8216  2.3   0.12689    
 
-mod_4 <- glmmTMB(BT_tot ~ (1|locality/site_irn/visit_no) + locality + pH + water_speed_ms + water_depth + Cond + wmo_prec +
-                       Temp_Water + site_type + seas_wmo + bp_pres + bf_pres + bp_pres*bf_pres +
-                       locality*seas_wmo + wmo_prec*seas_wmo + site_type*seas_wmo + 
-                       water_depth*water_speed_ms +
+mod_3 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) + 
+                       locality + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       Temp_Water + site_type + seas_wmo + BP_tot + BF_tot + BP_tot*BF_tot +
+                       locality*seas_wmo + site_type*seas_wmo + site_type*Temp_Water +
                        offset(log(duration)),
-                 data=snaildf,
+                 data=chemdf,
                  family=nbinom2)
-drop1(mod_4, test = "Chisq")  # Temp_Water                  1 8228.4  0.713 0.398490   
+drop1(mod_3, test = "Chisq")   # Temp_Water:site_type  7 8214 12.5  0.08452 .       
 
-mod_5 <- glmmTMB(BT_tot ~ (1|locality/site_irn/visit_no) + locality + pH + water_speed_ms + water_depth + Cond + wmo_prec +
-                       site_type + seas_wmo + bp_pres + bf_pres + bp_pres*bf_pres +
-                       locality*seas_wmo + wmo_prec*seas_wmo + site_type*seas_wmo + 
-                       water_depth*water_speed_ms +
-                       offset(log(duration)),
-                 data=snaildf,
-                 family=nbinom2)
-drop1(mod_5, test = "Chisq")  # wmo_prec:seas_wmo           1 8228.4  1.969 0.160567  
-
-mod_6 <- glmmTMB(BT_tot ~ (1|locality/site_irn/visit_no) + locality + pH + water_speed_ms + water_depth + Cond + wmo_prec +
-                       site_type + seas_wmo + bp_pres + bf_pres + bp_pres*bf_pres +
-                       locality*seas_wmo + site_type*seas_wmo + 
-                       water_depth*water_speed_ms +
-                       offset(log(duration)),
-                 data=snaildf,
-                 family=nbinom2)
-drop1(mod_6, test = "Chisq")  # pH                          1 8229.4  2.988 0.083878 . 
-
-mod_7 <- glmmTMB(BT_tot ~ (1|locality/site_irn/visit_no) + locality + water_speed_ms + water_depth + Cond + wmo_prec +
-                       site_type + seas_wmo + bp_pres + bf_pres + bp_pres*bf_pres +
-                       locality*seas_wmo + site_type*seas_wmo + 
-                       water_depth*water_speed_ms +
-                       offset(log(duration)),
-                 data=snaildf,
-                 family=nbinom2) 
-drop1(mod_7, test = "Chisq")  # water_speed_ms:water_depth  1 8230.7  3.330 0.068028 . 
-
-mod_8 <- glmmTMB(BT_tot ~ (1|locality/site_irn/visit_no) + locality + water_speed_ms + water_depth + Cond + wmo_prec +
-                       site_type + seas_wmo + bp_pres + bf_pres + bp_pres*bf_pres +
+mod_4 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) + 
+                       locality + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       Temp_Water + site_type + seas_wmo + BP_tot + BF_tot + BP_tot*BF_tot +
                        locality*seas_wmo + site_type*seas_wmo +
                        offset(log(duration)),
-                 data=snaildf,
-                 family=nbinom2) 
-drop1(mod_8, test = "Chisq")  # water_depth         1 8229.4  0.674 0.411710   
+                 data=chemdf,
+                 family=nbinom2)
+drop1(mod_4, test = "Chisq")   # Temp_Water          1 8212  0.1    0.7109  
 
-mod_9 <- glmer.nb(BT_tot ~ (1|locality/site_irn/visit_no) + locality + water_speed_ms + Cond + wmo_prec +
-                       site_type + seas_wmo + bp_pres + bf_pres + bp_pres*bf_pres +
-                       locality*seas_wmo + site_type*seas_wmo,
-                       offset = log(duration),
-                 data=snaildf)    # Model convergence problem; extreme or very small eigen values detected.
-drop1(mod_9, test = "Chisq")  # Nothing to remove
+mod_5 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) + 
+                       locality + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       site_type + seas_wmo + BP_tot + BF_tot + BP_tot*BF_tot +
+                       locality*seas_wmo + site_type*seas_wmo +
+                       offset(log(duration)),
+                 data=chemdf,
+                 family=nbinom2)
+drop1(mod_5, test = "Chisq")   # nothing to remove
+mod_5 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) + 
+                       locality + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       site_type + seas_wmo + BP_tot + BF_tot + BP_tot*BF_tot +
+                       locality*seas_wmo + site_type*seas_wmo +
+                       offset(log(duration)),
+                 data=chemdf[chemdf$locality != "Kohan Garantche" & chemdf$locality != "Gantchi Bassarou", ],
+                 family=nbinom2)
 
 # Since model convergence failed at mod_9, it might be best to use mod_7 for the summary
-summary(mod_7)
-Anova.glmmTMB(mod_7)
-TukeyHSD(mod_7)
-emmeans(mod_7, ~ (locality | seas_wmo))
+emmeans(mod_5, locality ~ seas_wmo)
+emmip(mod_5, ~seas_wmo) + ggthemes::theme_few()
+df <- data.frame(Effect.glmmTMB(mod_5, focal.predictors = c("locality", "seas_wmo")))
 
 #'<br><br>
 #'
@@ -608,15 +559,80 @@ emmeans(mod_7, ~ (locality | seas_wmo))
 #########################################################################################
 ########################      Bulinus forskalii total      ##############################
 #########################################################################################
-# Start with a model containing some main effects, add predictors step-by-step
-mod_A <- glmmTMB(BF_tot ~ (1|locality/site_irn/visit_no) + locality + water_speed_ms + Cond + wmo_prec +
-                       site_type + seas_wmo + 
+mod_A <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
+                       locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       Temp_Water + site_type + seas_wmo + BP_tot + BT_tot + BP_tot*BT_tot +
+                       locality*seas_wmo + site_type*seas_wmo + site_type*Temp_Water + site_type*pH +
                        offset(log(duration)),
-                 data=snaildf,
-                 family=nbinom2) 
-mod_B <- glmmTMB(BF_tot ~ (1|locality/site_irn/visit_no) + locality + water_speed_ms + Cond + wmo_prec +
-                       site_type + seas_wmo + bp_pres + bf_pres +
+                 data=chemdf[chemdf$locality != "Kohan Garantche", ],
+                 family=nbinom2)
+summary(mod_A)
+sim_res_modA <- DHARMa::simulateResiduals(mod_A, 1000)
+plot(sim_res_modA)  # Not overdispersed.
+testZeroInflation(sim_res_modA)  # No zero-inflation. 
+
+drop1(mod_A, test = "Chisq")   # Cond                  1 5948  0.0   0.9540  
+
+mod_B <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
+                       locality + pH + water_speed_ms + water_depth + water_level + wmo_prec +
+                       Temp_Water + site_type + seas_wmo + BP_tot + BT_tot + BP_tot*BT_tot +
+                       locality*seas_wmo + site_type*seas_wmo + site_type*Temp_Water + site_type*pH +
                        offset(log(duration)),
-                 data=snaildf,
-                 family=nbinom2) 
-anova(mod_A, mod_B)
+                 data=chemdf[chemdf$locality != "Kohan Garantche", ],
+                 family=nbinom2)
+drop1(mod_B, test = "Chisq")   # Temp_Water:site_type  7 5939  4.7   0.6934  
+
+mod_C <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
+                       locality + pH + water_speed_ms + water_depth + water_level + wmo_prec +
+                       Temp_Water + site_type + seas_wmo + BP_tot + BT_tot + BP_tot*BT_tot +
+                       locality*seas_wmo + site_type*seas_wmo + site_type*pH +
+                       offset(log(duration)),
+                 data=chemdf[chemdf$locality != "Kohan Garantche", ],
+                 family=nbinom2)
+drop1(mod_C, test = "Chisq")   # wmo_prec            1 5937  0.1  0.80410 
+
+mod_D <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
+                       locality + pH + water_speed_ms + water_depth + water_level + 
+                       Temp_Water + site_type + seas_wmo + BP_tot + BT_tot + BP_tot*BT_tot +
+                       locality*seas_wmo + site_type*seas_wmo + site_type*pH +
+                       offset(log(duration)),
+                 data=chemdf[chemdf$locality != "Kohan Garantche", ],
+                 family=nbinom2)
+drop1(mod_D, test = "Chisq")   # water_depth         1 5935  0.3  0.61265   
+
+mod_E <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
+                       locality + pH + water_speed_ms + water_level + 
+                       Temp_Water + site_type + seas_wmo + BP_tot + BT_tot + BP_tot*BT_tot +
+                       locality*seas_wmo + site_type*seas_wmo + site_type*pH +
+                       offset(log(duration)),
+                 data=chemdf[chemdf$locality != "Kohan Garantche", ],
+                 family=nbinom2)
+drop1(mod_E, test = "Chisq")   # BP_tot:BT_tot       1 5934  0.4   0.54452  
+
+mod_F <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
+                       locality + pH + water_speed_ms + water_level + 
+                       Temp_Water + site_type + seas_wmo + BP_tot + BT_tot +
+                       locality*seas_wmo + site_type*seas_wmo + site_type*pH +
+                       offset(log(duration)),
+                 data=chemdf[chemdf$locality != "Kohan Garantche", ],
+                 family=nbinom2)
+drop1(mod_F, test = "Chisq")   # pH:site_type        7 5930 10.2     0.17847  
+
+mod_G <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
+                       locality + pH + water_speed_ms + water_level + 
+                       Temp_Water + site_type + seas_wmo + BP_tot + BT_tot +
+                       locality*seas_wmo + site_type*seas_wmo +
+                       offset(log(duration)),
+                 data=chemdf[chemdf$locality != "Kohan Garantche", ],
+                 family=nbinom2)
+drop1(mod_G, test = "Chisq")   # pH                  1 5929  1.3     0.26017    
+
+mod_H <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
+                       locality + water_speed_ms + water_level + 
+                       Temp_Water + site_type + seas_wmo + BP_tot + BT_tot +
+                       locality*seas_wmo + site_type*seas_wmo +
+                       offset(log(duration)),
+                 data=chemdf[chemdf$locality != "Kohan Garantche", ],
+                 family=nbinom2)
+summary(mod_H)
+
