@@ -27,13 +27,13 @@ source("HighstatLibV10.R")
 setwd("..")
 
 #' ### Import and prepare the data set
-fulldf <- read.csv("Data/survey_para_merge_ALL_2018-10-13.csv") %>% 
-  dplyr::select(filter.min, coll_date, month, passage_no, locality, site_irn, site_type_clean, BP_tot, BP_pos_tot, BF_tot, BF_pos_tot, 
+fulldf <- read.csv("Data/Niger_snail_survey_ALL_2019.csv") %>% 
+  dplyr::select(filter.min, coll_date, month, locality, site_irn, BP_tot, BP_pos_tot, BF_tot, BF_pos_tot, 
                 BT_tot, BT_pos_tot, BG_tot, BS_tot, BT_prev, BF_prev, Bulinus_tot, Bulinus_pos_tot,
-                bp_pres, bt_pres, bf_pres,
-                Temp_Air, Temp_Eau,w_level_ed, water_speed_ms, water_depth, pH, Cond, PPM, Latitude, Longitude, Stagnante,
-                wmo_min_temp, wmo_max_temp, wmo_av_temp, wmo_prec, seas_wmo, duration, Heure) %>% 
-  rename(visit_no = passage_no, Temp_Water = Temp_Eau, water_level = w_level_ed, site_type = site_type_clean) %>% 
+                bp_pres, bt_pres, bf_pres, visit_no, site_type,
+                Temp_Air,Temp_Water, water_speed_ms, water_depth, pH, Cond, PPM, Latitude, Longitude, Stagnante,
+                wmo_min_temp, wmo_max_temp, wmo_av_temp, wmo_prec, seas_wmo, duration, Heure,
+                water_level.v, water_level3) %>% 
   # Remove NA values in predictor variables
   dplyr::filter(Bulinus_tot <= 1000,
                 !is.na(site_irn)) %>% 
@@ -136,7 +136,7 @@ fulldf_out <- fulldf %>%
 # Make data frame with all missing values remove in water variables
 chemdf <- fulldf %>% 
       dplyr::filter(!is.na(pH), !is.na(Cond), !is.na(Temp_Water), !is.na(PPM), !is.na(pH),
-                    !is.na(water_depth), !is.na(water_speed_ms))
+                    !is.na(water_depth), !is.na(water_speed_ms), water_level.v != "")
 chemdf_out <- chemdf %>% 
       dplyr::filter(water_speed_ms < 2,
                     Cond < 8)
@@ -313,22 +313,40 @@ model7 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) +
                         offset(log(duration)),
                   data=chemdf[chemdf$locality != "Kohan Garantche",],
                   family=nbinom2)
-drop1(model7, test = "Chisq")      #
-confint(model7)
 
-lsmeans(model1, ~water_level)
-      # water_level         3 10439 48.044 2.084e-10 ***
-      # locality:seas_wmo  19 10403 43.948 0.0009601 ***
-      # site_type:seas_wmo  7 10408 25.139 0.0007170 ***
-      # wmo_prec:site_type  7 10399 15.642 0.0285935 *  
-      # Cond:site_type      7 10403 19.527 0.0066868 ** 
+#                          Df   AIC  LRT    Pr(>Chi)    
+#       <none>                10232                     
+#       water_level         2 10267 39.2 0.000000003 ***
+#       locality:seas_wmo  18 10234 37.6      0.0044 ** 
+#       site_type:seas_wmo  7 10241 23.3      0.0015 ** 
+#       wmo_prec:site_type  7 10233 15.3      0.0329 *  
+#       Cond:site_type      7 10238 20.2      0.0052 ** 
   
 summary(model7)
-glmmTMB::Anova.glmmTMB(model7)
+
+#' Interaction analysis using emmeans
+glmmTMB::Anova.glmmTMB(model7, test.statistic = "Chisq")
+
 sim_residuals7 <- DHARMa::simulateResiduals(model7, 1000) 
 plot(sim_residuals7)
 
 emmip(model7, site_type ~ seas_wmo)
+test <- data.frame(emmeans(model7, pairwise ~ seas_wmo | site_type))
+test2 <- allEffects(model7)
+plot(test2$water_level)
+plot(test2$`locality:seas_wmo`)
+df <- data.frame(test2$`site_type:seas_wmo`)
+
+
+confint(test, adjust = "tukey")
+df <- data.frame(Effect.glmmTMB(model7, focal.predictors = c("site_type", "seas_wmo")))
+
+ggplot(df) +
+      geom_bar(aes(x = reorder(site_type, fit), y = fit, fill = seas_wmo), col = "black",
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = site_type, ymin = fit-se, ymax = fit+se,
+                        group = seas_wmo), position = position_dodge())
+
 
 #'<br><br>
 #'
@@ -434,7 +452,7 @@ drop1(mod_h, test = "Chisq")  # Cond    1 787.42 0.99221   0.3192
 
 mod_i <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + pH +
                        offset(log(duration)),
-                 data=snaildf,
+                 data=chemdf,
                  family=nbinom2) # Convergence problems
 plot(snaildf$pH, snaildf$Bulinus_pos_tot)    # Maybe nonlinear relationship?
 
@@ -541,11 +559,18 @@ mod_5 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) +
                  data=chemdf[chemdf$locality != "Kohan Garantche" & chemdf$locality != "Gantchi Bassarou", ],
                  family=nbinom2)
 
-# Since model convergence failed at mod_9, it might be best to use mod_7 for the summary
-emmeans(mod_5, locality ~ seas_wmo)
-emmip(mod_5, ~seas_wmo) + ggthemes::theme_few()
-df <- data.frame(Effect.glmmTMB(mod_5, focal.predictors = c("locality", "seas_wmo")))
+df2 <- data.frame(Effect.glmmTMB(mod_5, focal.predictors = c("site_type", "seas_wmo")))
 
+ggplot(df2) +
+      geom_bar(aes(x = site_type, y = fit, fill = seas_wmo), col = "black",
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = site_type, ymin = fit-se, ymax = fit+se,
+                        group = seas_wmo), position = position_dodge())
+summary(mod_5)
+
+plot(chemdf$site_type)
+
+test <- allEffects(mod_5)
 #'<br><br>
 #'
 #'--------------------------------------------------------------------------------------------
@@ -635,4 +660,101 @@ mod_H <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) +
                  data=chemdf[chemdf$locality != "Kohan Garantche", ],
                  family=nbinom2)
 summary(mod_H)
+
+df3 <- data.frame(Effect.glmmTMB(mod_H, focal.predictors = c("site_type", "seas_wmo")))
+
+ggplot(df3) +
+      geom_bar(aes(x = site_type, y = fit, fill = seas_wmo), col = "black",
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = site_type, ymin = fit-se, ymax = fit+se,
+                        group = seas_wmo), position = position_dodge())
+summary(mod_H)
+
+
+
+#########################################################################################
+########################      Summary of final models      ##############################
+#########################################################################################
+model7 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) +
+                        locality + water_level.v + Cond + wmo_prec +
+                        site_type + seas_wmo +
+                        locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
+                        site_type*Cond +
+                        offset(log(duration)),
+                  data=chemdf[chemdf$locality != "Kohan Garantche", ],
+                  family=nbinom2)
+
+mod_d <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + locality +
+                       offset(log(duration)),
+                 data=chemdf,
+                 family=nbinom2) 
+
+mod_5 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) + 
+                       locality + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       site_type + seas_wmo + BP_tot + BF_tot + BP_tot*BF_tot +
+                       locality*seas_wmo + site_type*seas_wmo +
+                       offset(log(duration)),
+                 data=chemdf[chemdf$locality != "Kohan Garantche" & chemdf$locality != "Gantchi Bassarou", ],
+                 family=nbinom2)
+
+mod_H <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
+                       locality + water_speed_ms + water_level + 
+                       Temp_Water + site_type + seas_wmo + BP_tot + BT_tot +
+                       locality*seas_wmo + site_type*seas_wmo +
+                       offset(log(duration)),
+                 data=chemdf[chemdf$locality != "Kohan Garantche", ],
+                 family=nbinom2)
+
+#########################################################################################
+############################      Plot of emmeans      ##################################
+#########################################################################################
+
+#' Bulinus_tot
+# locality:seas_wmo
+#  emmeans
+emmip(model7, locality ~ seas_wmo)
+
+locality_seas_wmo_df <- data.frame(emmeans(model7,  ~ locality*seas_wmo, lmer.df = "tukey"))
+pairs(emmeans(model7,  ~ locality*seas_wmo), simple = "seas_wmo")
+ggplot(locality_seas_wmo_df) +
+      geom_bar(aes(x = reorder(locality, emmean), y = emmean, fill = seas_wmo), col = "black",
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = locality, ymin = emmean-SE, ymax = emmean+SE,
+                        group = seas_wmo), position = position_dodge()) +
+      scale_fill_manual(values = c("lightgrey", "darkgrey")) 
+
+summary(model7)
+
+# effects
+df <- data.frame(glmmTMB::Effect.glmmTMB(model7, focal.predictors = c("locality", "seas_wmo")))
+ggplot(df) +
+      geom_bar(aes(x = reorder(locality, fit), y = fit, fill = seas_wmo), col = "black",
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = locality, ymin = fit-se, ymax = fit+se,
+                        group = seas_wmo), position = position_dodge()) +
+      scale_fill_manual(values = c("lightgrey", "darkgrey")) 
+
+# site_type:seas_wmo
+#  emmeans
+emmip(model7, site_type ~ seas_wmo)
+
+site_type_seas_wmo_df <- data.frame(emmeans(model7,  ~ site_type*seas_wmo, lmer.df = "tukey"))
+pairs(emmeans(model7,  ~ site_type*seas_wmo), simple = "seas_wmo")
+ggplot(site_type_seas_wmo_df) +
+      geom_bar(aes(x = reorder(site_type, emmean), y = emmean, fill = seas_wmo), col = "black",
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = site_type, ymin = emmean-SE, ymax = emmean+SE,
+                        group = seas_wmo), position = position_dodge()) +
+      scale_fill_manual(values = c("lightgrey", "darkgrey")) 
+
+
+# effects
+df <- data.frame(glmmTMB::Effect.glmmTMB(model7, focal.predictors = c("site_type", "seas_wmo")))
+ggplot(df) +
+      geom_bar(aes(x = reorder(site_type, fit), y = fit, fill = seas_wmo), col = "black",
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = site_type, ymin = fit-se, ymax = fit+se,
+                        group = seas_wmo), position = position_dodge()) +
+      scale_fill_manual(values = c("lightgrey", "darkgrey")) 
+
 
