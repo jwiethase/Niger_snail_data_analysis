@@ -11,6 +11,7 @@ library(ggthemes)
 library(DHARMa) # for model diagnostics
 library(emmeans)  # for post hoc test
 library(DataExplorer)   # for data exploration
+library(gridExtra)
 
 
 # Change font size and ggthemes globally
@@ -198,7 +199,7 @@ plot_correlation(na.omit(fulldfc), maxcat = 5L)
 
 # Decide for a family. It's count count data, looking very overdispersed, so negative binomial is most likely appropriate
 poiss <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no)  + 
-                       locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       locality + pH + water_speed_ms + water_depth + water_level.v + Cond + wmo_prec +
                        Temp_Water + site_type + seas_wmo + 
                        locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
                        site_type*Cond + site_type*Temp_Water + site_type*pH  +
@@ -207,7 +208,7 @@ poiss <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no)  +
                  family=poisson)
 
 model <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + 
-                       locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       locality + pH + water_speed_ms + water_depth + water_level.v + Cond + wmo_prec +
                        Temp_Water + site_type + seas_wmo + 
                        locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
                        site_type*Cond + site_type*Temp_Water + site_type*pH +
@@ -216,7 +217,7 @@ model <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) +
                  family=nbinom1)
 
 model1 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) + 
-                        locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                        locality + pH + water_speed_ms + water_depth + water_level.v + Cond + wmo_prec +
                         Temp_Water + site_type + seas_wmo + 
                         locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
                         site_type*Cond + site_type*Temp_Water + site_type*pH +
@@ -255,7 +256,7 @@ View(fulldf[fulldf$locality == "Kohan Garantche",] %>% dplyr::select(seas_wmo, l
 drop1(model1, test = "Chisq")        # Temp_Water:site_type  7 10408  3.398 0.8458894  
 
 model2 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) + 
-                        locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                        locality + pH + water_speed_ms + water_depth + water_level.v + Cond + wmo_prec +
                         Temp_Water + site_type + seas_wmo + 
                         locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
                         site_type*Cond + site_type*pH +
@@ -265,7 +266,7 @@ model2 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) +
 drop1(model2, test = "Chisq")        # pH:site_type        7 10399  5.205 0.6349038 
 
 model3 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) + 
-                        locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                        locality + pH + water_speed_ms + water_depth + water_level.v + Cond + wmo_prec +
                         Temp_Water + site_type + seas_wmo + 
                         locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
                         site_type*Cond +
@@ -275,7 +276,7 @@ model3 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) +
 drop1(model3, test = "Chisq")        # pH                  1 10397  0.090 0.7635879   
 
 model4 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) + 
-                        locality + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                        locality + water_speed_ms + water_depth + water_level.v + Cond + wmo_prec +
                         Temp_Water + site_type + seas_wmo + 
                         locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
                         site_type*Cond +
@@ -285,7 +286,7 @@ model4 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) +
 drop1(model4, test = "Chisq")        # water_depth         1 10396  1.202 0.2729720  
 
 model5 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) + 
-                        locality + water_speed_ms + water_level + Cond + wmo_prec +
+                        locality + water_speed_ms + water_level.v + Cond + wmo_prec +
                         Temp_Water + site_type + seas_wmo +
                         locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
                         site_type*Cond +
@@ -296,17 +297,17 @@ drop1(model5, test = "Chisq")      # Temp_Water          1 10396  1.799  0.17980
 MASS::dropterm(model5, test = "Chisq")
 
 model6 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) + 
-                        locality + water_speed_ms + water_level + Cond + wmo_prec +
+                        locality + water_speed_ms + water_level.v + Cond + wmo_prec +
                         site_type + seas_wmo +
                         locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
                         site_type*Cond +
                         offset(log(duration)),
                   data=chemdf,
                   family=nbinom2)
-drop1(model6, test = "Chisq")      # water_speed_ms      1 10397  3.103 0.0781317 .  
+drop1(model6, test = "Chisq")      # water_speed_ms      1 10634  2.7     0.10083    
 
 model7 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) +
-                        locality + water_level + Cond + wmo_prec +
+                        locality + water_level.v + Cond + wmo_prec +
                         site_type + seas_wmo +
                         locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
                         site_type*Cond +
@@ -316,7 +317,7 @@ model7 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) +
 
 #                          Df   AIC  LRT    Pr(>Chi)    
 #       <none>                10232                     
-#       water_level         2 10267 39.2 0.000000003 ***
+#       water_level.v         2 10267 39.2 0.000000003 ***
 #       locality:seas_wmo  18 10234 37.6      0.0044 ** 
 #       site_type:seas_wmo  7 10241 23.3      0.0015 ** 
 #       wmo_prec:site_type  7 10233 15.3      0.0329 *  
@@ -481,7 +482,7 @@ mod_l <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + water_depth 
                  family=nbinom2) # No convergence problems
 drop1(mod_k, test = "Chisq")  # water_depth  1 787.42 0.098649   0.7535
 
-mod_l <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + water_level + 
+mod_l <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + water_level.v + 
                        offset(log(duration)),
                  data=snaildf,
                  family=nbinom2) # No convergence problems
@@ -502,7 +503,7 @@ drop1(mod_l, test = "Chisq")  # water_depth  1 787.42 0.098649   0.7535
 #########################################################################################
 # Include other species present yes/no
 mod_1 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) + 
-locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+locality + pH + water_speed_ms + water_depth + water_level.v + Cond + wmo_prec +
       Temp_Water + site_type + seas_wmo + BP_tot + BF_tot + BP_tot*BF_tot +
       locality*seas_wmo + site_type*seas_wmo + site_type*Temp_Water + site_type*pH +
       offset(log(duration)),
@@ -517,7 +518,7 @@ testZeroInflation(sim_res_mod1)  # No zero-inflation.
 drop1(mod_1, test = "Chisq")   # pH:site_type          7 8215  5.1    0.65174
 
 mod_2 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) + 
-                       locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       locality + pH + water_speed_ms + water_depth + water_level.v + Cond + wmo_prec +
                        Temp_Water + site_type + seas_wmo + BP_tot + BF_tot + BP_tot*BF_tot +
                        locality*seas_wmo + site_type*seas_wmo + site_type*Temp_Water +
                        offset(log(duration)),
@@ -526,7 +527,7 @@ mod_2 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) +
 drop1(mod_2, test = "Chisq")   # pH                    1 8216  2.3   0.12689    
 
 mod_3 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) + 
-                       locality + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       locality + water_speed_ms + water_depth + water_level.v + Cond + wmo_prec +
                        Temp_Water + site_type + seas_wmo + BP_tot + BF_tot + BP_tot*BF_tot +
                        locality*seas_wmo + site_type*seas_wmo + site_type*Temp_Water +
                        offset(log(duration)),
@@ -535,7 +536,7 @@ mod_3 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) +
 drop1(mod_3, test = "Chisq")   # Temp_Water:site_type  7 8214 12.5  0.08452 .       
 
 mod_4 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) + 
-                       locality + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       locality + water_speed_ms + water_depth + water_level.v + Cond + wmo_prec +
                        Temp_Water + site_type + seas_wmo + BP_tot + BF_tot + BP_tot*BF_tot +
                        locality*seas_wmo + site_type*seas_wmo +
                        offset(log(duration)),
@@ -544,7 +545,7 @@ mod_4 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) +
 drop1(mod_4, test = "Chisq")   # Temp_Water          1 8212  0.1    0.7109  
 
 mod_5 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) + 
-                       locality + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       locality + water_speed_ms + water_depth + water_level.v + Cond + wmo_prec +
                        site_type + seas_wmo + BP_tot + BF_tot + BP_tot*BF_tot +
                        locality*seas_wmo + site_type*seas_wmo +
                        offset(log(duration)),
@@ -552,7 +553,7 @@ mod_5 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) +
                  family=nbinom2)
 drop1(mod_5, test = "Chisq")   # nothing to remove
 mod_5 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) + 
-                       locality + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       locality + water_speed_ms + water_depth + water_level.v + Cond + wmo_prec +
                        site_type + seas_wmo + BP_tot + BF_tot + BP_tot*BF_tot +
                        locality*seas_wmo + site_type*seas_wmo +
                        offset(log(duration)),
@@ -585,7 +586,7 @@ test <- allEffects(mod_5)
 ########################      Bulinus forskalii total      ##############################
 #########################################################################################
 mod_A <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
-                       locality + pH + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       locality + pH + water_speed_ms + water_depth + water_level.v + Cond + wmo_prec +
                        Temp_Water + site_type + seas_wmo + BP_tot + BT_tot + BP_tot*BT_tot +
                        locality*seas_wmo + site_type*seas_wmo + site_type*Temp_Water + site_type*pH +
                        offset(log(duration)),
@@ -599,7 +600,7 @@ testZeroInflation(sim_res_modA)  # No zero-inflation.
 drop1(mod_A, test = "Chisq")   # Cond                  1 5948  0.0   0.9540  
 
 mod_B <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
-                       locality + pH + water_speed_ms + water_depth + water_level + wmo_prec +
+                       locality + pH + water_speed_ms + water_depth + water_level.v + wmo_prec +
                        Temp_Water + site_type + seas_wmo + BP_tot + BT_tot + BP_tot*BT_tot +
                        locality*seas_wmo + site_type*seas_wmo + site_type*Temp_Water + site_type*pH +
                        offset(log(duration)),
@@ -608,7 +609,7 @@ mod_B <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) +
 drop1(mod_B, test = "Chisq")   # Temp_Water:site_type  7 5939  4.7   0.6934  
 
 mod_C <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
-                       locality + pH + water_speed_ms + water_depth + water_level + wmo_prec +
+                       locality + pH + water_speed_ms + water_depth + water_level.v + wmo_prec +
                        Temp_Water + site_type + seas_wmo + BP_tot + BT_tot + BP_tot*BT_tot +
                        locality*seas_wmo + site_type*seas_wmo + site_type*pH +
                        offset(log(duration)),
@@ -617,7 +618,7 @@ mod_C <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) +
 drop1(mod_C, test = "Chisq")   # wmo_prec            1 5937  0.1  0.80410 
 
 mod_D <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
-                       locality + pH + water_speed_ms + water_depth + water_level + 
+                       locality + pH + water_speed_ms + water_depth + water_level.v + 
                        Temp_Water + site_type + seas_wmo + BP_tot + BT_tot + BP_tot*BT_tot +
                        locality*seas_wmo + site_type*seas_wmo + site_type*pH +
                        offset(log(duration)),
@@ -626,7 +627,7 @@ mod_D <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) +
 drop1(mod_D, test = "Chisq")   # water_depth         1 5935  0.3  0.61265   
 
 mod_E <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
-                       locality + pH + water_speed_ms + water_level + 
+                       locality + pH + water_speed_ms + water_level.v + 
                        Temp_Water + site_type + seas_wmo + BP_tot + BT_tot + BP_tot*BT_tot +
                        locality*seas_wmo + site_type*seas_wmo + site_type*pH +
                        offset(log(duration)),
@@ -635,7 +636,7 @@ mod_E <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) +
 drop1(mod_E, test = "Chisq")   # BP_tot:BT_tot       1 5934  0.4   0.54452  
 
 mod_F <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
-                       locality + pH + water_speed_ms + water_level + 
+                       locality + pH + water_speed_ms + water_level.v + 
                        Temp_Water + site_type + seas_wmo + BP_tot + BT_tot +
                        locality*seas_wmo + site_type*seas_wmo + site_type*pH +
                        offset(log(duration)),
@@ -644,7 +645,7 @@ mod_F <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) +
 drop1(mod_F, test = "Chisq")   # pH:site_type        7 5930 10.2     0.17847  
 
 mod_G <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
-                       locality + pH + water_speed_ms + water_level + 
+                       locality + pH + water_speed_ms + water_level.v + 
                        Temp_Water + site_type + seas_wmo + BP_tot + BT_tot +
                        locality*seas_wmo + site_type*seas_wmo +
                        offset(log(duration)),
@@ -653,7 +654,7 @@ mod_G <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) +
 drop1(mod_G, test = "Chisq")   # pH                  1 5929  1.3     0.26017    
 
 mod_H <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
-                       locality + water_speed_ms + water_level + 
+                       locality + water_speed_ms + water_level.v + 
                        Temp_Water + site_type + seas_wmo + BP_tot + BT_tot +
                        locality*seas_wmo + site_type*seas_wmo +
                        offset(log(duration)),
@@ -681,7 +682,7 @@ model7 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) +
                         locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
                         site_type*Cond +
                         offset(log(duration)),
-                  data=chemdf[chemdf$locality != "Kohan Garantche", ],
+                  data=chemdf[chemdf$locality != "Kohan Garantche",],
                   family=nbinom2)
 
 mod_d <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + locality +
@@ -690,7 +691,7 @@ mod_d <- glmmTMB(Bulinus_pos_tot ~ (1|locality/site_irn/visit_no) + locality +
                  family=nbinom2) 
 
 mod_5 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) + 
-                       locality + water_speed_ms + water_depth + water_level + Cond + wmo_prec +
+                       locality + water_speed_ms + water_depth + water_level.v + Cond + wmo_prec +
                        site_type + seas_wmo + BP_tot + BF_tot + BP_tot*BF_tot +
                        locality*seas_wmo + site_type*seas_wmo +
                        offset(log(duration)),
@@ -698,7 +699,7 @@ mod_5 <- glmmTMB(BT_tot ~ (1 |locality/site_irn/visit_no) +
                  family=nbinom2)
 
 mod_H <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) + 
-                       locality + water_speed_ms + water_level + 
+                       locality + water_speed_ms + water_level.v + 
                        Temp_Water + site_type + seas_wmo + BP_tot + BT_tot +
                        locality*seas_wmo + site_type*seas_wmo +
                        offset(log(duration)),
@@ -710,51 +711,48 @@ mod_H <- glmmTMB(BF_tot ~ (1 |locality/site_irn/visit_no) +
 #########################################################################################
 
 #' Bulinus_tot
-# locality:seas_wmo
-#  emmeans
+# locality*seas_wmo
 emmip(model7, locality ~ seas_wmo)
 
-locality_seas_wmo_df <- data.frame(emmeans(model7,  ~ locality*seas_wmo, lmer.df = "tukey"))
-pairs(emmeans(model7,  ~ locality*seas_wmo), simple = "seas_wmo")
+locality_seas_wmo_df <- data.frame(emmeans(model7,  ~ locality*seas_wmo,
+                                           lmer.df = "tukey", type = "response"))
+pairs(emmeans(model7,  ~ locality*seas_wmo, type = "response",
+              lmer.df = "tukey"), simple = "seas_wmo")
 ggplot(locality_seas_wmo_df) +
-      geom_bar(aes(x = reorder(locality, emmean), y = emmean, fill = seas_wmo), col = "black",
+      geom_bar(aes(x = locality, y = rate, fill = seas_wmo), col = "black",
                position = position_dodge(), stat = "identity") +
-      geom_errorbar(aes(x = locality, ymin = emmean-SE, ymax = emmean+SE,
+      geom_errorbar(aes(x = locality, ymin = rate-SE, ymax = rate+SE,
                         group = seas_wmo), position = position_dodge()) +
       scale_fill_manual(values = c("lightgrey", "darkgrey")) 
 
-summary(model7)
-
-# effects
-df <- data.frame(glmmTMB::Effect.glmmTMB(model7, focal.predictors = c("locality", "seas_wmo")))
-ggplot(df) +
-      geom_bar(aes(x = reorder(locality, fit), y = fit, fill = seas_wmo), col = "black",
-               position = position_dodge(), stat = "identity") +
-      geom_errorbar(aes(x = locality, ymin = fit-se, ymax = fit+se,
-                        group = seas_wmo), position = position_dodge()) +
-      scale_fill_manual(values = c("lightgrey", "darkgrey")) 
-
-# site_type:seas_wmo
-#  emmeans
-emmip(model7, site_type ~ seas_wmo)
-
-site_type_seas_wmo_df <- data.frame(emmeans(model7,  ~ site_type*seas_wmo, lmer.df = "tukey"))
-pairs(emmeans(model7,  ~ site_type*seas_wmo), simple = "seas_wmo")
+# site_type*seas_wmo
+site_type_seas_wmo_df <- data.frame(emmeans(model7,  ~ site_type*seas_wmo, lmer.df = "tukey",
+                                            type = "response"))
+pairs(emmeans(model7,  ~ site_type*seas_wmo,
+              type = "response"), simple = "seas_wmo")
 ggplot(site_type_seas_wmo_df) +
-      geom_bar(aes(x = reorder(site_type, emmean), y = emmean, fill = seas_wmo), col = "black",
+      geom_bar(aes(x = reorder(site_type, rate), y = rate, fill = seas_wmo), col = "black",
                position = position_dodge(), stat = "identity") +
-      geom_errorbar(aes(x = site_type, ymin = emmean-SE, ymax = emmean+SE,
+      geom_errorbar(aes(x = site_type, ymin = rate-SE, ymax = rate+SE,
                         group = seas_wmo), position = position_dodge()) +
       scale_fill_manual(values = c("lightgrey", "darkgrey")) 
 
+# site_type*wmo_prec
+site_type_wmo_prec_df  <- data.frame(emtrends(model7,  ~ site_type, var = "wmo_prec",
+                                             lmer.df = "tukey", type = "response"))
+ggplot(site_type_wmo_prec_df) +
+      geom_errorbar(aes(x = reorder(site_type, wmo_prec.trend), ymin = wmo_prec.trend-SE, ymax = wmo_prec.trend+SE)) +
+      geom_point(aes(x = reorder(site_type, wmo_prec.trend), y = wmo_prec.trend), pch = 23, cex = 4,
+                 fill = "white") +
+      ylab("Estimated slope with wmo_prec") +
+      xlab("")
 
-# effects
-df <- data.frame(glmmTMB::Effect.glmmTMB(model7, focal.predictors = c("site_type", "seas_wmo")))
-ggplot(df) +
-      geom_bar(aes(x = reorder(site_type, fit), y = fit, fill = seas_wmo), col = "black",
-               position = position_dodge(), stat = "identity") +
-      geom_errorbar(aes(x = site_type, ymin = fit-se, ymax = fit+se,
-                        group = seas_wmo), position = position_dodge()) +
-      scale_fill_manual(values = c("lightgrey", "darkgrey")) 
-
-
+# site_type*Cond
+site_type_Cond_df  <- data.frame(emtrends(model7,  ~ site_type, var = "Cond",
+                                              lmer.df = "tukey", type = "response"))
+ggplot(site_type_Cond_df) +
+      geom_errorbar(aes(x = reorder(site_type, Cond.trend), ymin = Cond.trend-SE, ymax = Cond.trend+SE)) +
+      geom_point(aes(x = reorder(site_type, Cond.trend), y = Cond.trend), pch = 23, cex = 4,
+                 fill = "white") +
+      ylab("Estimated slope with Cond") +
+      xlab("")
