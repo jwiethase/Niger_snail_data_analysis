@@ -25,6 +25,8 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 # Import some helpful functions
 source("HighstatLibV10.R")
 setwd("..")
+test <- fulldf %>% group_by(site_type) %>% 
+      summarize(mT = mean(Temp_Water, na.rm = T ), minT = min(Temp_Water, na.rm = T ), maxT = max(Temp_Water, na.rm = T ))
 
 #' ### Import and prepare the data set
 fulldf <- read.csv("Data/Niger_snail_survey_cref_FTA_counts_2019.csv") %>% 
@@ -190,7 +192,7 @@ plot_correlation(na.omit(fulldfc), maxcat = 5L)
 #'
 #'
 #########################################################################################
-############################      Bulinus total      ####################################
+############################      Bulinus total      ####################################  To investigate water attribute effects specifically
 #########################################################################################
 
 # There are generally many zeroes. This doesn't mean that the data is zero-inflated, but it might be worth checking for zero-inflation anyways
@@ -223,7 +225,7 @@ model <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) +
 
 model1 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn) + (1|coll_date) +
                         Temp_Water + pH + water_speed_ms + water_depth + Cond + wmo_prec +
-                        site_type + month + Bulinus_pos_tot + 
+                        site_type + Bulinus_pos_tot + 
                         site_type*Temp_Water + site_type*pH + site_type*Cond + site_type*wmo_prec + 
                         offset(log(duration)),
                   data=chemdf,
@@ -275,15 +277,13 @@ summary(model2)  # Standard errors are now normal
 #'
 #'
 #########################################################################################
-########################      Bulinus truncatus total      ##############################
+########################      Bulinus truncatus total      ##############################  To look at species site preferences and seasonal trends
 #########################################################################################
-mod_1 <- glmmTMB(BT_tot ~ (1|locality/site_irn) + (1|coll_date) +
-                        Temp_Water + water_speed_ms + water_depth + Cond + wmo_prec +
+mod_1 <- glmmTMB(BT_tot ~ (1|locality/site_irn) + (1|coll_date) + wmo_prec +
                         site_type + month + BT_pos_tot + 
-                        site_type*Temp_Water + site_type*Cond + site_type*wmo_prec + 
                         BP_tot + BF_tot + L_tot +
                         offset(log(duration)),
-                  data=chemdf,
+                  data=fulldf,
                   family=nbinom2)
 
 Anova.glmmTMB(mod_1)
@@ -291,6 +291,7 @@ sim_res_mod1 <- DHARMa::simulateResiduals(mod_1, 1000)
 plot(sim_res_mod1)  # Not overdispersed.
 testZeroInflation(sim_res_mod1)  # No zero-inflation. 
 summary(mod_1)  
+View(chemdf %>% dplyr::select(BT_tot, site_type, wmo_prec, Temp_Water, everything()))
 
 #'<br><br>
 #'
@@ -305,13 +306,11 @@ summary(mod_1)
 #########################################################################################
 ########################      Bulinus forskalii total      ##############################
 #########################################################################################
-mod_A <- glmmTMB(BF_tot ~ (1|locality/site_irn) + (1|coll_date) +
-              Temp_Water + water_speed_ms + water_depth + Cond + wmo_prec +
+mod_A <- glmmTMB(BF_tot ~ (1|locality/site_irn) + (1|coll_date) + wmo_prec +
               site_type + month + BF_pos_tot + 
-              site_type*Temp_Water + site_type*Cond + site_type*wmo_prec + 
               BP_tot + BT_tot + L_tot +
               offset(log(duration)),
-        data=chemdf,
+        data=fulldf,
         family=nbinom2)
 
 sim_res_modA <- DHARMa::simulateResiduals(mod_A, 1000)
@@ -319,17 +318,44 @@ plot(sim_res_modA)  # Not overdispersed.
 testZeroInflation(sim_res_modA)  # No zero-inflation. 
 
 summary(mod_A)
+Anova.glmmTMB(mod_A)
 
+#'<br><br>
+#'
+#'--------------------------------------------------------------------------------------------
+#'--------------------------------------------------------------------------------------------
+#'
+#'
+#'--------------------------------------------------------------------------------------------
+#'--------------------------------------------------------------------------------------------
+#'
+#'
+#########################################################################################
+##############################      Limnea total      ###################################
+#########################################################################################
+mod_a <- glmmTMB(L_tot ~ (1|locality/site_irn) + (1|coll_date) + wmo_prec +
+                       site_type + month + 
+                       BP_tot + BT_tot + BF_tot +
+                       offset(log(duration)),
+                 data= fulldf, 
+                 family=nbinom2)
+summary(mod_a)
+glmmTMB::Anova.glmmTMB(mod_a)
+sim_res_moda <- DHARMa::simulateResiduals(mod_a, 1000)
+plot(sim_res_moda)  # Not overdispersed.
+testZeroInflation(sim_res_moda)  # No zero-inflation. 
+
+View(chemdf[chemdf$site_type == "spillway",] %>% dplyr::select(L_tot, Temp_Water, site_type, everything()))
 #########################################################################################
 ##############################      Anova tables      ###################################
 #########################################################################################
 glmmTMB::Anova.glmmTMB(model1)
 summary(model1)
-glmmTMB::Anova.glmmTMB(mod_1)
+glmmTMB::Anova.glmmTMB(mod_1)   # BT
 summary(mod_1)
-glmmTMB::Anova.glmmTMB(mod_A)
+glmmTMB::Anova.glmmTMB(mod_A)   # BF
 summary(mod_A)
-
+glmmTMB::Anova.glmmTMB(mod_a)   # L
 
 
 #########################################################################################
@@ -338,58 +364,30 @@ summary(mod_A)
 
 #' Temp_Water:site_type
 
-Temp_Water_site_type_df <-  data.frame(emtrends(model1,  ~ site_type, var = "Temp_Water",
+Temp_Water_site_type_df <-  data.frame(emtrends(mod_A,  ~ site_type, var = "Temp_Water",
                                                 lmer.df = "tukey", type = "response"))
-Temp_Water_site_type_df <-  data.frame(emtrends(mod_1,  ~ site_type, var = "Temp_Water",
-                                                lmer.df = "tukey", type = "response"))
-pairs(emmeans(model10,  ~ locality*seas_wmo, type = "response",
-              lmer.df = "tukey"), simple = "seas_wmo")
-ggplot(locality_seas_wmo_df) +
-      geom_bar(aes(x = locality, y = rate, fill = seas_wmo), col = "black",
+ggplot(Temp_Water_site_type_df) +
+      geom_errorbar(aes(x = reorder(site_type, Temp_Water.trend), ymin = Temp_Water.trend-SE, ymax = Temp_Water.trend+SE),
+                    width = .3) +
+      geom_point(aes(x = reorder(site_type, Temp_Water.trend), y = Temp_Water.trend), pch = 23, cex = 4,
+                 fill = "white") +
+      ylab("Estimated slope with Temp_Water") +
+      xlab("")
+
+
+# Month
+month_BT  <- data.frame(emmeans(mod_1,  ~ month, type = "response")) %>% mutate(species = "Bulinus truncatus")
+month_BF  <- data.frame(emmeans(mod_A,  ~ month, type = "response")) %>% mutate(species = "Bulinus forskalii")
+month_L  <- data.frame(emmeans(mod_a,  ~ month, type = "response")) %>% mutate(species = "Limnea")
+month_all <- rbind(month_BT, month_BF, month_L)
+
+ggplot(month_all) +
+      geom_bar(aes(x = month, y = rate), col = "black", 
                position = position_dodge(), stat = "identity") +
-      geom_errorbar(aes(x = locality, ymin = rate-SE, ymax = rate+SE,
-                        group = seas_wmo), position = position_dodge()) +
-      scale_fill_manual(values = c("lightgrey", "darkgrey")) 
+      geom_errorbar(aes(x = month, ymin = rate-SE, ymax = rate+SE, group = species), position = position_dodge()) +
+      facet_grid(rows = vars(species), scales = "free")
 
-# site_type*seas_wmo
-site_type_seas_wmo_df <- data.frame(emmeans(model7,  ~ site_type*seas_wmo, lmer.df = "tukey",
-                                            type = "response"))
-pairs(emmeans(model7,  ~ site_type*seas_wmo,
-              type = "response"), simple = "seas_wmo")
-ggplot(site_type_seas_wmo_df) +
-      geom_bar(aes(x = reorder(site_type, rate), y = rate, fill = seas_wmo), col = "black",
-               position = position_dodge(), stat = "identity") +
-      geom_errorbar(aes(x = site_type, ymin = rate-SE, ymax = rate+SE,
-                        group = seas_wmo), position = position_dodge()) +
-      scale_fill_manual(values = c("lightgrey", "darkgrey")) 
 
-# site_type*wmo_prec
-site_type_wmo_prec_df  <- data.frame(emtrends(model7,  ~ site_type, var = "wmo_prec",
-                                             lmer.df = "tukey", type = "response"))
-ggplot(site_type_wmo_prec_df) +
-      geom_errorbar(aes(x = reorder(site_type, wmo_prec.trend), ymin = wmo_prec.trend-SE, ymax = wmo_prec.trend+SE)) +
-      geom_point(aes(x = reorder(site_type, wmo_prec.trend), y = wmo_prec.trend), pch = 23, cex = 4,
-                 fill = "white") +
-      ylab("Estimated slope with wmo_prec") +
-      xlab("")
+pairs(emmeans(mod_1,  ~ month, type = "response"))
 
-# site_type*Cond
-site_type_Cond_df  <- data.frame(emtrends(model7,  ~ site_type, var = "Cond",
-                                              lmer.df = "tukey", type = "response"))
-ggplot(site_type_Cond_df) +
-      geom_errorbar(aes(x = reorder(site_type, Cond.trend), ymin = Cond.trend-SE, ymax = Cond.trend+SE)) +
-      geom_point(aes(x = reorder(site_type, Cond.trend), y = Cond.trend), pch = 23, cex = 4,
-                 fill = "white") +
-      ylab("Estimated slope with Cond") +
-      xlab("")
 
-# Bulinus_pos_tot*Cond 
-Bulinus_pos_tot_Cond_df  <- data.frame(emtrends(model10,  ~ Bulinus_pos_tot, var = "Cond",
-                                          lmer.df = "tukey", type = "response"))
-emmip(model10, Bulinus_pos_tot ~ Cond, cov.reduce = range)
-ggplot(site_type_Cond_df) +
-      geom_errorbar(aes(x = reorder(site_type, Cond.trend), ymin = Cond.trend-SE, ymax = Cond.trend+SE)) +
-      geom_point(aes(x = reorder(site_type, Cond.trend), y = Cond.trend), pch = 23, cex = 4,
-                 fill = "white") +
-      ylab("Estimated slope with Cond") +
-      xlab("")
