@@ -25,8 +25,6 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 # Import some helpful functions
 source("HighstatLibV10.R")
 setwd("..")
-test <- fulldf %>% group_by(site_type) %>% 
-      summarize(mT = mean(Temp_Water, na.rm = T ), minT = min(Temp_Water, na.rm = T ), maxT = max(Temp_Water, na.rm = T ))
 
 #' ### Import and prepare the data set
 fulldf <- read.csv("Data/Niger_snail_survey_cref_FTA_counts_2019.csv") %>% 
@@ -141,13 +139,6 @@ fulldf_out <- fulldf %>%
       dplyr::filter(water_speed_ms < 2,
                     Cond < 8)
 
-# Make data frame with all missing values remove in water variables
-chemdf <- fulldf %>% 
-      dplyr::filter(!is.na(pH), !is.na(Cond), !is.na(Temp_Water), !is.na(PPM), !is.na(pH),
-                    !is.na(water_depth), !is.na(water_speed_ms), water_level.v != "")
-chemdf_out <- chemdf %>% 
-      dplyr::filter(water_speed_ms < 2,
-                    Cond < 8)
 #' Are there any variance inflation factors (multicollinearity)? Check using a function from Zuur et al. 2010
 
 pairs(fulldf[,c("Temp_Air", "Temp_Water", "water_speed_ms", "water_depth", "pH", "Cond", "PPM",
@@ -181,16 +172,8 @@ plot_correlation(na.omit(fulldfc), maxcat = 5L)
 # B: Include sampling duration as an offset, to account for differences in sampling effort
 
 
-#'<br><br>
-#'
-#'--------------------------------------------------------------------------------------------
-#'--------------------------------------------------------------------------------------------
-#'
-#'
-#'--------------------------------------------------------------------------------------------
-#'--------------------------------------------------------------------------------------------
-#'
-#'
+
+
 #########################################################################################
 ############################      Bulinus total      ####################################  To investigate water attribute effects specifically
 #########################################################################################
@@ -205,157 +188,128 @@ plot_correlation(na.omit(fulldfc), maxcat = 5L)
 # with log link (nbinom2)
 
 # Decide for a family. It's count count data, looking very overdispersed, so negative binomial is most likely appropriate
-poiss <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no)  + 
-                       locality + pH + water_speed_ms + water_depth + water_level.v + Cond + wmo_prec +
-                       Temp_Water + site_type + seas_wmo + 
-                       locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
-                       site_type*Cond + site_type*Temp_Water + site_type*pH  +
-                   offset(log(duration)),
-                 data=chemdf,
+Bulinus_poiss <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no)  + 
+                       Temp_Water + pH + water_speed_ms + water_depth + Cond + wmo_prec +
+                       locality + site_type + Bulinus_pos_tot + 
+                       site_type*Temp_Water + site_type*pH + site_type*Cond + site_type*wmo_prec + 
+                       offset(log(duration)),
+                 data=fulldf,
                  family=poisson)
 
-model <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + 
-                       locality + pH + water_speed_ms + water_depth + water_level.v + Cond + wmo_prec +
-                       Temp_Water + site_type + seas_wmo + 
-                       locality*seas_wmo + site_type*seas_wmo + site_type*wmo_prec + 
-                       site_type*Cond + site_type*Temp_Water + site_type*pH +
-                      offset(log(duration)),
-                 data=chemdf,
+Bulinus_m <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + 
+                       Temp_Water + pH + water_speed_ms + water_depth + Cond + wmo_prec +
+                       locality + site_type + Bulinus_pos_tot + 
+                       site_type*Temp_Water + site_type*pH + site_type*Cond + site_type*wmo_prec + 
+                       offset(log(duration)),
+                 data=fulldf,
                  family=nbinom1)
 
-model1 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn) + (1|coll_date) +
+Bulinus_m1 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + 
                         Temp_Water + pH + water_speed_ms + water_depth + Cond + wmo_prec +
-                        site_type + Bulinus_pos_tot + 
+                        locality + site_type + Bulinus_pos_tot + 
                         site_type*Temp_Water + site_type*pH + site_type*Cond + site_type*wmo_prec + 
                         offset(log(duration)),
-                  data=chemdf,
+                  data=fulldf,
                   family=nbinom2)
-Anova.glmmTMB(model1)
+
 #' Model diagnostics
 # Visually check the model fit using the DHARMa package, a package for model diagnostics
 # https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html#formal-goodness-of-fit-tests-on-the-scaled-residuals
-sim_residuals1 <- DHARMa::simulateResiduals(model, 1000)  # Ignore warnings
+sim_residualsPoiss <- DHARMa::simulateResiduals(Bulinus_poiss, 1000)  # Ignore warnings
+# Plot the residuals to visually test for over-/underdispersion
+plot(sim_residualsPoiss)  # significant deviation
+
+sim_residuals1 <- DHARMa::simulateResiduals(Bulinus_m, 1000)  # Ignore warnings
 # Plot the residuals to visually test for over-/underdispersion
 plot(sim_residuals1)  # Good fit
 
-sim_residuals2 <- DHARMa::simulateResiduals(model1, 1000) 
+sim_residuals2 <- DHARMa::simulateResiduals(Bulinus_m1, 1000) 
 plot(sim_residuals2)  # Virtually the same. Difference between nbinom1 and nbinom2 seems neglible
 
 testZeroInflation(sim_residuals2)  # There is no evidence for zero-inflation
 
-# Look at the model
-
-summary(model1)  # Next to no variance is coming from locality, so technically we could exclude this from the model.
+# Model results
+summary(Bulinus_m1)  # Next to no variance is coming from locality, so technically we could exclude this from the model.
                  # Aesthetically, we can keep it in, to highlight the nested design of the study
-                 
-# Standard errors for Kohan Garantche:seas_wmowet are huge. Try to find out why
-View(chemdf[chemdf$locality == "Kohan Garantche",] %>% dplyr::select(seas_wmo, locality, Bulinus_tot, everything())) 
-# There were many snails in the dry season, but zero in the wet season. This inflates the standard error hugely.
-# One way to potentially deal with this is to artificially add a count of 1 for one day of the wet season
-# Put count of 1 for visit_no 40
-bulinus_df <- chemdf
-bulinus_df$Bulinus_tot[bulinus_df$locality == "Kohan Garantche" & bulinus_df$visit_no == 40] <- 1
-model2 <- glmmTMB(Bulinus_tot ~ (1 |locality/site_irn/visit_no) + 
-                        locality + pH + water_speed_ms + water_depth + Cond + wmo_prec +
-                        Temp_Water + site_type + month + Bulinus_pos_tot + 
-                        site_type*wmo_prec + 
-                        site_type*Cond + site_type*Temp_Water + site_type*pH +
-                        offset(log(duration)),
-                  data=bulinus_df,
-                  family=nbinom2)
-summary(model2)  # Standard errors are now normal
+Anova.glmmTMB(Bulinus_m1)
 
 
-#'<br><br>
-#'
-#'--------------------------------------------------------------------------------------------
-#'--------------------------------------------------------------------------------------------
-#'
-#'
-#'--------------------------------------------------------------------------------------------
-#'--------------------------------------------------------------------------------------------
-#'
-#'
+
+
 #########################################################################################
-########################      Bulinus truncatus total      ##############################  To look at species site preferences and seasonal trends
+########################      Bulinus truncatus total      ##############################  
 #########################################################################################
-mod_1 <- glmmTMB(BT_tot ~ (1|locality/site_irn) + (1|coll_date) + wmo_prec +
+BT_m1 <- glmmTMB(BT_tot ~ (1|locality/site_irn/visit_no)  + wmo_prec +
                         site_type + month + BT_pos_tot + 
                         BP_tot + BF_tot + L_tot +
                         offset(log(duration)),
                   data=fulldf,
                   family=nbinom2)
 
-Anova.glmmTMB(mod_1)
-sim_res_mod1 <- DHARMa::simulateResiduals(mod_1, 1000)
-plot(sim_res_mod1)  # Not overdispersed.
-testZeroInflation(sim_res_mod1)  # No zero-inflation. 
-summary(mod_1)  
-View(chemdf %>% dplyr::select(BT_tot, site_type, wmo_prec, Temp_Water, everything()))
+sim_res_BT_m1 <- DHARMa::simulateResiduals(BT_m1, 1000)
+plot(sim_res_BT_m1)  # Not overdispersed.
+testZeroInflation(sim_res_BT_m1)  # No zero-inflation. 
 
-#'<br><br>
-#'
-#'--------------------------------------------------------------------------------------------
-#'--------------------------------------------------------------------------------------------
-#'
-#'
-#'--------------------------------------------------------------------------------------------
-#'--------------------------------------------------------------------------------------------
-#'
-#'
+# Model results
+summary(BT_m1)  
+Anova.glmmTMB(BT_m1)
+
+
+
+
 #########################################################################################
 ########################      Bulinus forskalii total      ##############################
 #########################################################################################
-mod_A <- glmmTMB(BF_tot ~ (1|locality/site_irn) + (1|coll_date) + wmo_prec +
+BF_m1 <- glmmTMB(BF_tot ~ (1|locality/site_irn) + (1|coll_date) + wmo_prec +
               site_type + month + BF_pos_tot + 
               BP_tot + BT_tot + L_tot +
               offset(log(duration)),
         data=fulldf,
         family=nbinom2)
 
-sim_res_modA <- DHARMa::simulateResiduals(mod_A, 1000)
-plot(sim_res_modA)  # Not overdispersed.
-testZeroInflation(sim_res_modA)  # No zero-inflation. 
+sim_res_BF_m1 <- DHARMa::simulateResiduals(BF_m1, 1000)
+plot(sim_res_BF_m1)  # Not overdispersed.
+testZeroInflation(sim_res_BF_m1)  # No zero-inflation. 
 
-summary(mod_A)
-Anova.glmmTMB(mod_A)
+# Model results
+summary(BF_m1)
+Anova.glmmTMB(BF_m1)
 
-#'<br><br>
-#'
-#'--------------------------------------------------------------------------------------------
-#'--------------------------------------------------------------------------------------------
-#'
-#'
-#'--------------------------------------------------------------------------------------------
-#'--------------------------------------------------------------------------------------------
-#'
-#'
+
+
+
 #########################################################################################
 ##############################      Limnea total      ###################################
 #########################################################################################
-mod_a <- glmmTMB(L_tot ~ (1|locality/site_irn) + (1|coll_date) + wmo_prec +
+L_m1 <- glmmTMB(L_tot ~ (1|locality/site_irn) + (1|coll_date) + wmo_prec +
                        site_type + month + 
                        BP_tot + BT_tot + BF_tot +
                        offset(log(duration)),
                  data= fulldf, 
                  family=nbinom2)
-summary(mod_a)
-glmmTMB::Anova.glmmTMB(mod_a)
-sim_res_moda <- DHARMa::simulateResiduals(mod_a, 1000)
-plot(sim_res_moda)  # Not overdispersed.
-testZeroInflation(sim_res_moda)  # No zero-inflation. 
 
-View(chemdf[chemdf$site_type == "spillway",] %>% dplyr::select(L_tot, Temp_Water, site_type, everything()))
+sim_res_L_m1 <- DHARMa::simulateResiduals(L_m1, 1000)
+plot(sim_res_L_m1)  # Not overdispersed.
+testZeroInflation(sim_res_L_m1)  # No zero-inflation. 
+
+# Model results
+summary(L_m1)
+Anova.glmmTMB(L_m1)
+
+
+
+
 #########################################################################################
 ##############################      Anova tables      ###################################
 #########################################################################################
-glmmTMB::Anova.glmmTMB(model1)
-summary(model1)
-glmmTMB::Anova.glmmTMB(mod_1)   # BT
-summary(mod_1)
-glmmTMB::Anova.glmmTMB(mod_A)   # BF
-summary(mod_A)
-glmmTMB::Anova.glmmTMB(mod_a)   # L
+glmmTMB::Anova.glmmTMB(Bulinus_m1)
+summary(Bulinus_m1)
+glmmTMB::Anova.glmmTMB(BT_m1)   
+summary(BT_m1)
+glmmTMB::Anova.glmmTMB(BF_m1)  
+summary(BF_m1)
+glmmTMB::Anova.glmmTMB(L_m1)   
+summary(L_m1)
 
 
 #########################################################################################
@@ -363,9 +317,7 @@ glmmTMB::Anova.glmmTMB(mod_a)   # L
 #########################################################################################
 
 #' Temp_Water:site_type
-
-Temp_Water_site_type_df <-  data.frame(emtrends(mod_A,  ~ site_type, var = "Temp_Water",
-                                                lmer.df = "tukey", type = "response"))
+Temp_Water_site_type_df <-  data.frame(emtrends(Bulinus_m1,  ~ site_type, var = "Temp_Water", type = "response"))
 ggplot(Temp_Water_site_type_df) +
       geom_errorbar(aes(x = reorder(site_type, Temp_Water.trend), ymin = Temp_Water.trend-SE, ymax = Temp_Water.trend+SE),
                     width = .3) +
@@ -373,6 +325,40 @@ ggplot(Temp_Water_site_type_df) +
                  fill = "white") +
       ylab("Estimated slope with Temp_Water") +
       xlab("")
+
+ggplot(Temp_Water_site_type_df) +
+      geom_bar(aes(x = reorder(site_type, Temp_Water.trend), y = Temp_Water.trend), col = "black",
+               fill = "white", position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = reorder(site_type, Temp_Water.trend), ymin = Temp_Water.trend-SE, ymax = Temp_Water.trend+SE),
+                    width = .3) +
+      ylab("Estimated slope with Temp_Water") +
+      xlab("")
+
+#' Cond:site_type
+Cond_site_type_df <-  data.frame(emtrends(Bulinus_m1,  ~ site_type, var = "Cond", type = "response"))
+ggplot(Cond_site_type_df) +
+      geom_errorbar(aes(x = reorder(site_type, Cond.trend), ymin = Cond.trend-SE, ymax = Cond.trend+SE),
+                    width = .3) +
+      geom_point(aes(x = reorder(site_type, Cond.trend), y = Cond.trend), pch = 23, cex = 4,
+                 fill = "white") +
+      ylab("Estimated slope with Cond") +
+      xlab("")
+
+#' Bulinus_pos_tot
+emmip(Bulinus_m1, ~ Bulinus_pos_tot, cov.reduce = range)
+
+#' locality
+locality_df <-  data.frame(emmeans(Bulinus_m1,  ~ locality, type = "response"))
+ggplot(locality_df) +
+      geom_bar(aes(x = reorder(locality, rate), y = rate), col = "black",
+               fill = "white", position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = reorder(locality, rate), ymin = rate-SE, ymax = rate+SE),
+                    width = .3) +
+      ylab("Estimated marginal mean") +
+      xlab("")
+
+#' water_speed_ms
+emmip(Bulinus_m1, ~ water_speed_ms, cov.reduce = range)
 
 
 # Month
