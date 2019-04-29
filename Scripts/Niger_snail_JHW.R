@@ -85,38 +85,38 @@ summary(miss_model) # Not really any strong effects
 
 ################################################################################################################################
 # Remove NA values in duration, as well as predictors
-fulldf <- fulldf %>% 
-      filter(Bulinus_tot < 1000, !is.na(duration))
+subdf <- fulldf %>% 
+      filter(!is.na(duration))
 ################################################################################################################################
 
 #' Overview over the data structure
-plot_str(fulldf) + theme_few()
-introduce(fulldf)
+plot_str(subdf) + theme_few()
+introduce(subdf)
 
 #' Overview over predictor variables
-plot_histogram(fulldf)  # Outliers in Cond, PPM, water_depth, wmo_prec, water_speed. These outliers will drive results. Look at them critically
+plot_histogram(subdf)  # Outliers in Cond, PPM, water_depth, wmo_prec, water_speed. These outliers will drive results. Look at them critically
 
 #' Look closer at the outliers
 
 # 1: Cond
-plot(fulldf$Cond, fulldf$Bulinus_tot)
+plot(subdf$Cond, subdf$Bulinus_tot)
 
 # Where do these high values occur?
-fulldf$site_irn[fulldf$Cond > 6]   
-View(fulldf[fulldf$site_irn == 382877,] %>% dplyr::select(Cond, site_irn, water_depth, pH, PPM, everything()))
-View(fulldf[fulldf$site_irn == 487402,] %>% dplyr::select(Cond, site_irn, water_depth, pH, PPM, everything()))
+subdf$site_irn[subdf$Cond > 6]   
+View(subdf[subdf$site_irn == 382877,] %>% dplyr::select(Cond, site_irn, water_depth, pH, PPM, everything()))
+View(subdf[subdf$site_irn == 487402,] %>% dplyr::select(Cond, site_irn, water_depth, pH, PPM, everything()))
 
 # High Cond seem to coincide with high PPM, so it's not very likely that these are measurement outliers
 
 # 2: water_speed_ms
-plot(fulldf$water_speed_ms, fulldf$Bulinus_tot)  # One strong outlier
+plot(subdf$water_speed_ms, subdf$Bulinus_tot)  # One strong outlier
 
 # Where do these high values occur?
-fulldf$site_irn[fulldf$water_speed_ms > 3]   
-View(fulldf[fulldf$site_irn == 382867,] %>% dplyr::select(water_speed_ms, Cond, site_irn, water_depth, pH, PPM, everything()))
+subdf$site_irn[subdf$water_speed_ms > 3]   
+View(subdf[subdf$site_irn == 382867,] %>% dplyr::select(water_speed_ms, Cond, site_irn, water_depth, pH, PPM, everything()))
 
 # Is it generally an outlier, looking at all site types?
-plot(fulldf$site_type, fulldf$water_speed_ms)   # General outlier
+plot(subdf$site_type, subdf$water_speed_ms)   # General outlier
 
 # The measurement of 5 is possible, but a general outlier. It was the single measurement higher than 2, throughout
 # the whole study. Even though it is most likely a real measurement, the complete lack of other measurements
@@ -125,27 +125,27 @@ plot(fulldf$site_type, fulldf$water_speed_ms)   # General outlier
 # It might be best to exclude this observation from the data.
 
 # 2: wmo_prec
-plot(fulldf$wmo_prec, fulldf$Bulinus_tot)  # Many observations at most extreme precipitation
+plot(subdf$wmo_prec, subdf$Bulinus_tot)  # Many observations at most extreme precipitation
 
 # Where do these high values occur?
-View(fulldf[fulldf$wmo_prec > 60,] %>% dplyr::select(wmo_prec, seas_wmo, site_irn, water_depth, pH, PPM, everything()))  
+View(subdf[subdf$wmo_prec > 60,] %>% dplyr::select(wmo_prec, seas_wmo, site_irn, water_depth, pH, PPM, everything()))  
 
 # All outliers here come from the same, very rainy day at Lata Kabia (2014-08-02)
-ggplot(fulldf[fulldf$locality == "Lata Kabia",]) +
+ggplot(subdf[subdf$locality == "Lata Kabia",]) +
       geom_point(aes(x = as.factor(month), y = wmo_prec))
 
 #' Make a data frame with outliers removed
-fulldf_out <- fulldf %>% 
+subdf_out <- subdf %>% 
       dplyr::filter(water_speed_ms < 2,
                     Cond < 8)
 
 #' Are there any variance inflation factors (multicollinearity)? Check using a function from Zuur et al. 2010
 
-pairs(fulldf[,c("Temp_Air", "Temp_Water", "water_speed_ms", "water_depth", "pH", "Cond", "PPM",
+pairs(subdf[,c("Temp_Air", "Temp_Water", "water_speed_ms", "water_depth", "pH", "Cond", "PPM",
                  "wmo_av_temp", "Bulinus_tot", "wmo_prec")],
       lower.panel = panel.cor)
 
-corvif(data.table::as.data.table(fulldf)[, c("Temp_Air", "Temp_Water", "water_speed_ms", "water_depth", "pH", "Cond", "PPM",
+corvif(data.table::as.data.table(subdf)[, c("Temp_Air", "Temp_Water", "water_speed_ms", "water_depth", "pH", "Cond", "PPM",
                                   "wmo_av_temp", "wmo_prec"), with=FALSE])
 
 # Cond and PPM have high GVIF values (10). For values of higher than 4, only one of the two variables should be used in models, 
@@ -153,7 +153,7 @@ corvif(data.table::as.data.table(fulldf)[, c("Temp_Air", "Temp_Water", "water_sp
 
 
 #' Look at general correlation matrix
-plot_correlation(na.omit(fulldfc), maxcat = 5L)   
+plot_correlation(na.omit(subdfc), maxcat = 5L)   
 
 
 # Study design:
@@ -193,7 +193,7 @@ Bulinus_poiss <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no)  +
                        locality + site_type + Bulinus_pos_tot + 
                        site_type*Temp_Water + site_type*pH + site_type*Cond + site_type*wmo_prec + 
                        offset(log(duration)),
-                 data=fulldf,
+                 data=subdf,
                  family=poisson)
 
 Bulinus_m <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + 
@@ -201,7 +201,7 @@ Bulinus_m <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) +
                        locality + site_type + Bulinus_pos_tot + 
                        site_type*Temp_Water + site_type*pH + site_type*Cond + site_type*wmo_prec + 
                        offset(log(duration)),
-                 data=fulldf,
+                 data=subdf,
                  family=nbinom1)
 
 Bulinus_m1 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + 
@@ -209,7 +209,7 @@ Bulinus_m1 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) +
                         locality + site_type + Bulinus_pos_tot + 
                         site_type*Temp_Water + site_type*pH + site_type*Cond + site_type*wmo_prec + 
                         offset(log(duration)),
-                  data=fulldf,
+                  data=subdf,
                   family=nbinom2)
 
 #' Model diagnostics
@@ -243,7 +243,7 @@ BT_m1 <- glmmTMB(BT_tot ~ (1|locality/site_irn/visit_no)  + wmo_prec +
                         site_type + month + BT_pos_tot + 
                         BP_tot + BF_tot + L_tot +
                         offset(log(duration)),
-                  data=fulldf,
+                  data=subdf,
                   family=nbinom2)
 
 sim_res_BT_m1 <- DHARMa::simulateResiduals(BT_m1, 1000)
@@ -264,7 +264,7 @@ BF_m1 <- glmmTMB(BF_tot ~ (1|locality/site_irn) + (1|coll_date) + wmo_prec +
               site_type + month + BF_pos_tot + 
               BP_tot + BT_tot + L_tot +
               offset(log(duration)),
-        data=fulldf,
+        data=subdf,
         family=nbinom2)
 
 sim_res_BF_m1 <- DHARMa::simulateResiduals(BF_m1, 1000)
@@ -285,7 +285,7 @@ L_m1 <- glmmTMB(L_tot ~ (1|locality/site_irn) + (1|coll_date) + wmo_prec +
                        site_type + month + 
                        BP_tot + BT_tot + BF_tot +
                        offset(log(duration)),
-                 data= fulldf, 
+                 data= subdf, 
                  family=nbinom2)
 
 sim_res_L_m1 <- DHARMa::simulateResiduals(L_m1, 1000)
@@ -296,6 +296,25 @@ testZeroInflation(sim_res_L_m1)  # No zero-inflation.
 summary(L_m1)
 Anova.glmmTMB(L_m1)
 
+
+#########################################################################################
+###############################      Prevalence      ####################################
+#########################################################################################
+df_monthly <- fulldf %>% group_by(month) %>% 
+      mutate(av_prec = mean(wmo_prec)) %>% ungroup() %>% 
+      group_by(month, locality, site_type, seas_wmo) %>% 
+      summarize(BT_pos_tot = as.numeric(sum(BT_pos_tot)),
+                BT_tot = as.numeric(sum(BT_tot)),
+                av_prec = mean(av_prec))
+
+BT_prev_m1 <- glmmTMB(BT_pos_tot/BT_tot ~ (1|month) +
+                      month,
+                      weights = BT_tot,
+                 data=df_monthly,
+                 family= binomial)
+Anova.glmmTMB(BT_prev_m1)
+summary(BT_prev_m1)
+confint(BT_prev_m1)
 
 
 
@@ -376,4 +395,9 @@ ggplot(month_all) +
 
 pairs(emmeans(mod_1,  ~ month, type = "response"))
 
+test  <- data.frame(emmeans(BT_prev_m1,  ~ month, type = "response"))
+ggplot(test) +
+      geom_bar(aes(x = month, y = prob), col = "black", 
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = month, ymin = prob-SE, ymax = prob+SE), position = position_dodge()) 
 
