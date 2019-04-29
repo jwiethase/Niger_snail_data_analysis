@@ -307,18 +307,34 @@ df_monthly <- fulldf %>% group_by(month) %>%
                 BT_tot = as.numeric(sum(BT_tot)),
                 BP_pos_tot = as.numeric(sum(BP_pos_tot)),
                 BP_tot = as.numeric(sum(BP_tot)),
+                BF_pos_tot = as.numeric(sum(BF_pos_tot)),
+                BF_tot = as.numeric(sum(BF_tot)),
                 av_prec = mean(av_prec))
+df_monthly$resid<-as.factor(1:dim(df_monthly)[1])
+
+# test <- df_monthly %>% 
+#       gather("species", "value", -c(month, locality, site_type, seas_wmo, av_prec)) %>% 
+#       separate(col = "species", into = c("species", "var"), sep = "_") %>% 
+#       spread(key = var, value = value)
 
 BT_prev_m1 <- glmmTMB(BT_pos_tot/BT_tot ~ (1|month) +
-                            locality + site_type + seas_wmo + av_prec,
+                            site_type,
                       weights = BT_tot,
-                      data=df_monthly[df_monthly$locality != "Gantchi Bassarou" & df_monthly$site_type != "stream",],
+                      data=df_monthly[df_monthly$locality != "Gantchi Bassarou" & df_monthly$locality != "Tagabati" & 
+                                            df_monthly$locality != "Tiaguirire" & df_monthly$locality != "Yoreize Koira" & 
+                                            df_monthly$site_type != "stream",],
                       family= binomial)
+
 Anova.glmmTMB(BT_prev_m1)
 summary(BT_prev_m1)
 
+sim_residuals <- DHARMa::simulateResiduals(BT_prev_m1, 1000)  
+
+plot(sim_residuals) 
+DHARMa::testDispersion(sim_residuals)
+
 BP_prev_m1 <- glmmTMB(BP_pos_tot/BP_tot ~ (1|month) +
-                            locality + site_type + seas_wmo + av_prec,
+                            locality + site_type + month,
                       weights = BP_tot,
                       data=subset(df_monthly, locality %in% c("Namari Goungou", "Diambala")),
                       family= binomial)
@@ -326,6 +342,9 @@ BP_prev_m1 <- glmmTMB(BP_pos_tot/BP_tot ~ (1|month) +
 Anova.glmmTMB(BP_prev_m1)
 summary(BP_prev_m1)
 
+sim_residuals <- DHARMa::simulateResiduals(BP_prev_m1, 1000)  
+plot(sim_residuals)  # Good fit
+DHARMa::testDispersion(sim_residuals)
 
 #########################################################################################
 ##############################      Anova tables      ###################################
@@ -338,7 +357,10 @@ glmmTMB::Anova.glmmTMB(BF_m1)
 summary(BF_m1)
 glmmTMB::Anova.glmmTMB(L_m1)   
 summary(L_m1)
-
+Anova.glmmTMB(BT_prev_m1)
+summary(BT_prev_m1)
+Anova.glmmTMB(BP_prev_m1)
+summary(BP_prev_m1)
 
 #########################################################################################
 ############################      Plot of emmeans      ##################################
@@ -410,3 +432,22 @@ ggplot(test) +
                position = position_dodge(), stat = "identity") +
       geom_errorbar(aes(x = month, ymin = prob-SE, ymax = prob+SE), position = position_dodge()) 
 
+#' Prevalence site_type
+prev_site_type_BT <-  data.frame(emmeans(BT_prev_m1,  ~ site_type, type = "response")) %>% mutate(species = "Bulinus truncatus")
+prev_site_type_BP <-  data.frame(emmeans(BP_prev_m1,  ~ site_type, type = "response")) %>% mutate(species = "Biomphilaria pfeifferi")
+prev_site_type_all <- rbind(prev_site_type_BT, prev_site_type_BP)
+
+ggplot(prev_site_type_all) +
+      geom_bar(aes(x = site_type, y = prob, fill = species), col = "black", 
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = site_type, ymin = prob-SE, ymax = prob+SE, group = species), position = position_dodge()) 
+
+#' Prevalence month
+prev_month_BT <-  data.frame(emmeans(BT_prev_m1,  ~ month, type = "response")) %>% mutate(species = "Bulinus truncatus")
+prev_month_BP <-  data.frame(emmeans(BP_prev_m1,  ~ month, type = "response")) %>% mutate(species = "Biomphilaria pfeifferi")
+prev_site_type_all <- rbind(prev_site_type_BT, prev_site_type_BP)
+
+ggplot(prev_site_type_all) +
+      geom_bar(aes(x = site_type, y = prob, fill = species), col = "black", 
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = site_type, ymin = prob-SE, ymax = prob+SE, group = species), position = position_dodge()) 
