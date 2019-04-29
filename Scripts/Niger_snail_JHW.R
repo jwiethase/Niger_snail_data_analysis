@@ -27,9 +27,9 @@ source("HighstatLibV10.R")
 setwd("..")
 
 #' ### Import and prepare the data set
-fulldf <- read.csv("Data/Niger_snail_survey_cref_FTA_counts_2019.csv") %>% 
+fulldf <- read.csv("Data/Niger_snail_survey_Bulinus_comb_2019-04-28.csv") %>% 
   dplyr::select(filter.min, coll_date, month, locality, site_irn, BP_tot, BP_pos_tot, BF_tot, BF_pos_tot, 
-                BT_tot, BT_pos_tot, BG_tot, BS_tot, BT_prev, BF_prev, Bulinus_tot, Bulinus_pos_tot,
+                BT_tot, BT_pos_tot, BT_prev, BF_prev, Bulinus_tot, Bulinus_pos_tot,
                 bp_pres, bt_pres, bf_pres, visit_no, site_type, L_tot, 
                 Temp_Air,Temp_Water, water_speed_ms, water_depth, pH, Cond, PPM, Latitude.v, Longitude.v, Stagnante,
                 wmo_min_temp, wmo_max_temp, wmo_av_temp, wmo_prec, seas_wmo, duration, Heure,
@@ -305,6 +305,8 @@ df_monthly <- fulldf %>% group_by(month) %>%
       group_by(month, locality, site_type, seas_wmo) %>% 
       summarize(BT_pos_tot = as.numeric(sum(BT_pos_tot)),
                 BT_tot = as.numeric(sum(BT_tot)),
+                BP_pos_tot = as.numeric(sum(BP_pos_tot)),
+                BP_tot = as.numeric(sum(BP_tot)),
                 av_prec = mean(av_prec))
 
 BT_prev_m1 <- glmmTMB(BT_pos_tot/BT_tot ~ (1|month) +
@@ -314,6 +316,15 @@ BT_prev_m1 <- glmmTMB(BT_pos_tot/BT_tot ~ (1|month) +
                       family= binomial)
 Anova.glmmTMB(BT_prev_m1)
 summary(BT_prev_m1)
+
+BP_prev_m1 <- glmmTMB(BP_pos_tot/BP_tot ~ (1|month) +
+                            locality + site_type + seas_wmo + av_prec,
+                      weights = BP_tot,
+                      data=subset(df_monthly, locality %in% c("Namari Goungou", "Diambala")),
+                      family= binomial)
+
+Anova.glmmTMB(BP_prev_m1)
+summary(BP_prev_m1)
 
 
 #########################################################################################
