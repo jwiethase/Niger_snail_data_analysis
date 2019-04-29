@@ -308,14 +308,12 @@ df_monthly <- fulldf %>% group_by(month) %>%
                 av_prec = mean(av_prec))
 
 BT_prev_m1 <- glmmTMB(BT_pos_tot/BT_tot ~ (1|month) +
-                      month,
+                            locality + site_type + seas_wmo + av_prec,
                       weights = BT_tot,
-                 data=df_monthly,
-                 family= binomial)
+                      data=df_monthly[df_monthly$locality != "Gantchi Bassarou" & df_monthly$site_type != "stream",],
+                      family= binomial)
 Anova.glmmTMB(BT_prev_m1)
 summary(BT_prev_m1)
-confint(BT_prev_m1)
-
 
 
 #########################################################################################
