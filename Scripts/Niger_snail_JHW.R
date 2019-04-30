@@ -12,6 +12,7 @@ library(DHARMa) # for model diagnostics
 library(emmeans)  # for post hoc test
 library(DataExplorer)   # for data exploration
 library(gridExtra)
+library(lme4)
 
 # Change font size and ggthemes globally
 theme_set(ggthemes::theme_few(base_size = 8))
@@ -310,41 +311,39 @@ df_monthly <- fulldf %>% group_by(month) %>%
                 BF_pos_tot = as.numeric(sum(BF_pos_tot)),
                 BF_tot = as.numeric(sum(BF_tot)),
                 av_prec = mean(av_prec))
-df_monthly$resid<-as.factor(1:dim(df_monthly)[1])
+
 
 # test <- df_monthly %>% 
 #       gather("species", "value", -c(month, locality, site_type, seas_wmo, av_prec)) %>% 
 #       separate(col = "species", into = c("species", "var"), sep = "_") %>% 
 #       spread(key = var, value = value)
 
-BT_prev_m1 <- glmmTMB(BT_pos_tot/BT_tot ~ (1|month) +
-                            site_type,
+BT_prev_m1 <- glm(BT_pos_tot/BT_tot ~ site_type + locality + month,
                       weights = BT_tot,
-                      data=df_monthly[df_monthly$locality != "Gantchi Bassarou" & df_monthly$locality != "Tagabati" & 
-                                            df_monthly$locality != "Tiaguirire" & df_monthly$locality != "Yoreize Koira" & 
-                                            df_monthly$site_type != "stream",],
+                      data= df_monthly[df_monthly$locality != "Gantchi Bassarou" & df_monthly$locality != "Tagabati" & 
+                                             df_monthly$locality != "Tiaguirire" & df_monthly$locality != "Yoreize Koira" & 
+                                             df_monthly$site_type != "stream",],
                       family= binomial)
 
-Anova.glmmTMB(BT_prev_m1)
+sim_residuals_BT_prev <- DHARMa::simulateResiduals(BT_prev_m1, 1000)  
+plot(sim_residuals_BT_prev) 
+DHARMa::testDispersion(sim_residuals_BT_prev)
+
+car::Anova(BT_prev_m1)
 summary(BT_prev_m1)
 
-sim_residuals <- DHARMa::simulateResiduals(BT_prev_m1, 1000)  
+BP_prev_m1 <- glm(BP_pos_tot/BP_tot ~ site_type + locality + month,
+                          weights = BP_tot,
+                          data=subset(df_monthly, locality %in% c("Namari Goungou", "Diambala")),
+                          family= binomial)
 
-plot(sim_residuals) 
-DHARMa::testDispersion(sim_residuals)
+sim_residuals_BP_prev <- DHARMa::simulateResiduals(BP_prev_m1, 1000)  
+plot(sim_residuals_BP_prev) 
+DHARMa::testDispersion(sim_residuals_BP_prev)
 
-BP_prev_m1 <- glmmTMB(BP_pos_tot/BP_tot ~ (1|month) +
-                            locality + site_type + month,
-                      weights = BP_tot,
-                      data=subset(df_monthly, locality %in% c("Namari Goungou", "Diambala")),
-                      family= binomial)
-
-Anova.glmmTMB(BP_prev_m1)
+car::Anova(BP_prev_m1)
 summary(BP_prev_m1)
 
-sim_residuals <- DHARMa::simulateResiduals(BP_prev_m1, 1000)  
-plot(sim_residuals)  # Good fit
-DHARMa::testDispersion(sim_residuals)
 
 #########################################################################################
 ##############################      Anova tables      ###################################
@@ -445,9 +444,20 @@ ggplot(prev_site_type_all) +
 #' Prevalence month
 prev_month_BT <-  data.frame(emmeans(BT_prev_m1,  ~ month, type = "response")) %>% mutate(species = "Bulinus truncatus")
 prev_month_BP <-  data.frame(emmeans(BP_prev_m1,  ~ month, type = "response")) %>% mutate(species = "Biomphilaria pfeifferi")
-prev_site_type_all <- rbind(prev_site_type_BT, prev_site_type_BP)
+prev_month_all <- rbind(prev_month_BT, prev_month_BP)
 
-ggplot(prev_site_type_all) +
-      geom_bar(aes(x = site_type, y = prob, fill = species), col = "black", 
+ggplot(prev_month_all) +
+      geom_bar(aes(x = month, y = prob, fill = species), col = "black", 
                position = position_dodge(), stat = "identity") +
-      geom_errorbar(aes(x = site_type, ymin = prob-SE, ymax = prob+SE, group = species), position = position_dodge()) 
+      geom_errorbar(aes(x = month, ymin = prob-SE, ymax = prob+SE, group = species), position = position_dodge()) 
+
+s#' Prevalence locality
+prev_locality_BT <-  data.frame(emmeans(BT_prev_m1,  ~ locality, type = "response")) %>% mutate(species = "Bulinus truncatus")
+prev_locality_BP <-  data.frame(emmeans(BP_prev_m1,  ~ locality, type = "response")) %>% mutate(species = "Biomphilaria pfeifferi")
+prev_locality_all <- rbind(prev_locality_BT, prev_locality_BP)
+
+ggplot(prev_locality_BT) +
+      geom_bar(aes(x = reorder(locality, prob), y = prob), col = "black", fill = "lightgrey",
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = locality, ymin = prob-SE, ymax = prob+SE), position = position_dodge()) +
+      ggtitle("Bulinus truncatus")
