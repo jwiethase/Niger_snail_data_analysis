@@ -451,13 +451,15 @@ ggplot(prev_month_all) +
                position = position_dodge(), stat = "identity") +
       geom_errorbar(aes(x = month, ymin = prob-SE, ymax = prob+SE, group = species), position = position_dodge()) 
 
-s#' Prevalence locality
+#' Prevalence locality
 prev_locality_BT <-  data.frame(emmeans(BT_prev_m1,  ~ locality, type = "response")) %>% mutate(species = "Bulinus truncatus")
 prev_locality_BP <-  data.frame(emmeans(BP_prev_m1,  ~ locality, type = "response")) %>% mutate(species = "Biomphilaria pfeifferi")
 prev_locality_all <- rbind(prev_locality_BT, prev_locality_BP)
 
+tiff(file="Figures/prev_locality.tiff", width = 170, height = 150, units = "mm", res = 200)
 ggplot(prev_locality_BT) +
       geom_bar(aes(x = reorder(locality, prob), y = prob), col = "black", fill = "lightgrey",
                position = position_dodge(), stat = "identity") +
       geom_errorbar(aes(x = locality, ymin = prob-SE, ymax = prob+SE), position = position_dodge()) +
       ggtitle("Bulinus truncatus")
+dev.off()
