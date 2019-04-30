@@ -356,9 +356,9 @@ glmmTMB::Anova.glmmTMB(BF_m1)
 summary(BF_m1)
 glmmTMB::Anova.glmmTMB(L_m1)   
 summary(L_m1)
-Anova.glmmTMB(BT_prev_m1)
+car::Anova(BT_prev_m1)
 summary(BT_prev_m1)
-Anova.glmmTMB(BP_prev_m1)
+car::Anova(BP_prev_m1)
 summary(BP_prev_m1)
 
 #########################################################################################
