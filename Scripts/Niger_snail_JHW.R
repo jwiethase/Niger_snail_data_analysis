@@ -240,7 +240,7 @@ Anova.glmmTMB(Bulinus_m1)
 #########################################################################################
 ########################      Bulinus truncatus total      ##############################  
 #########################################################################################
-BT_m1 <- glmmTMB(BT_tot ~ (1|locality/site_irn/visit_no)  + wmo_prec +
+BT_m1 <- glmmTMB(BT_tot ~ (1|locality/site_irn) + (1|coll_date) + wmo_prec +
                         site_type + month + BT_pos_tot + 
                         BP_tot + BF_tot + L_tot +
                         offset(log(duration)),
@@ -328,10 +328,10 @@ BT_prev_m1 <- glm(BT_pos_tot/BT_tot ~ site_type + locality + month,
 sim_residuals_BT_prev <- DHARMa::simulateResiduals(BT_prev_m1, 1000)  
 plot(sim_residuals_BT_prev) 
 DHARMa::testDispersion(sim_residuals_BT_prev)
-
 car::Anova(BT_prev_m1)
 summary(BT_prev_m1)
-
+DHARMa::testZeroInflation(sim_residuals_BT_prev)
+      
 BP_prev_m1 <- glm(BP_pos_tot/BP_tot ~ site_type + locality + month,
                           weights = BP_tot,
                           data=subset(df_monthly, locality %in% c("Namari Goungou", "Diambala")),
@@ -463,3 +463,15 @@ ggplot(prev_locality_BT) +
       geom_errorbar(aes(x = locality, ymin = prob-SE, ymax = prob+SE), position = position_dodge()) +
       ggtitle("Bulinus truncatus")
 dev.off()
+
+
+#########################################################################################
+############################      Exporting tables      #################################
+#########################################################################################
+anova_table <- car::Anova(BT_prev_m1)
+write.csv(anova_table)
+
+summary_table <- data.frame(summary(BT_prev_m1)$coefficients) %>% 
+      mutate(coefs = rownames(.)) %>% 
+      dplyr::select(coefs, everything())
+write.csv(summary_table)
