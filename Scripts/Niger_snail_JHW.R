@@ -475,3 +475,12 @@ summary_table <- data.frame(summary(BT_prev_m1)$coefficients) %>%
       mutate(coefs = rownames(.)) %>% 
       dplyr::select(coefs, everything())
 write.csv(summary_table)
+
+anova_table_glmmTMB <- glmmTMB::Anova.glmmTMB(L_m1)
+write.csv(anova_table_glmmTMB)
+
+summary_table_glmmTMB <- data.frame(summary(L_m1)$coefficients$cond) %>% 
+      mutate(coefs = rownames(.)) %>% 
+      dplyr::select(coefs, everything())
+write.csv(summary_table_glmmTMB)
+
