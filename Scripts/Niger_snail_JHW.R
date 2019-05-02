@@ -243,11 +243,12 @@ Anova.glmmTMB(Bulinus_m1)
 #########################################################################################
 BT_m1 <- glmmTMB(BT_tot ~ (1|locality/site_irn) + (1|coll_date) + wmo_prec +
                         site_type + month + BT_pos_tot + locality +
-                        offset(log(duration)),
-                  data=subdf,
+                        offset(log(duration)), 
+                  data=subdf[subdf$locality != "Gantchi Bassarou",],
                   family=nbinom2)
 
-sim_res_BT_m1 <- DHARMa::simulateResiduals(BT_m1, 1000)
+
+sim_res_BT_m1 <- DHARMa::simulateResiduals(test, 1000)
 plot(sim_res_BT_m1)  # Not overdispersed.
 testZeroInflation(sim_res_BT_m1)  # No zero-inflation. 
 
@@ -281,11 +282,14 @@ Anova.glmmTMB(BF_m1)
 #########################################################################################
 ##############################      Limnea total      ###################################
 #########################################################################################
+subdf %>% group_by(site_type) %>% summarize(n = sum(L_tot))
+
 L_m1 <- glmmTMB(L_tot ~ (1|locality/site_irn) + (1|coll_date) + wmo_prec +
-                       site_type + month + locality + 
+                       site_type + month +  locality +
                        offset(log(duration)),
-                 data= subdf, 
-                 family=nbinom2)
+                 data= subdf[subdf$locality != "Koutoukale Zeno" & subdf$locality != "Lata Kabia" &
+                                   subdf$locality != "Seberi" & subdf$site_type != "spillway", ],
+                family=nbinom2)
 
 sim_res_L_m1 <- DHARMa::simulateResiduals(L_m1, 1000)
 plot(sim_res_L_m1)  # Not overdispersed.
@@ -301,7 +305,7 @@ Anova.glmmTMB(L_m1)
 #########################################################################################
 df_monthly <- fulldf %>% group_by(month) %>% 
       mutate(av_prec = mean(wmo_prec)) %>% ungroup() %>% 
-      group_by(month, locality, site_type, seas_wmo) %>% 
+      group_by(month, year, locality, site_type, seas_wmo) %>% 
       summarize(BT_pos_tot = as.numeric(sum(BT_pos_tot)),
                 BT_tot = as.numeric(sum(BT_tot)),
                 BP_pos_tot = as.numeric(sum(BP_pos_tot)),
@@ -319,8 +323,7 @@ df_monthly <- fulldf %>% group_by(month) %>%
 BT_prev_m1 <- glm(BT_pos_tot/BT_tot ~ site_type + locality + month,
                       weights = BT_tot,
                       data= df_monthly[df_monthly$locality != "Gantchi Bassarou" & df_monthly$locality != "Tagabati" & 
-                                             df_monthly$locality != "Tiaguirire" & df_monthly$locality != "Yoreize Koira" & 
-                                             df_monthly$site_type != "stream",],
+                                             df_monthly$locality != "Tiaguirire" & df_monthly$locality != "Yoreize Koira",],
                       family= binomial)
 
 sim_residuals_BT_prev <- DHARMa::simulateResiduals(BT_prev_m1, 1000)  
@@ -363,19 +366,96 @@ summary(BP_prev_m1)
 ############################      Plot of emmeans      ##################################
 #########################################################################################
 
-#' site type abundance figure
-site_type_Bulinus  <- data.frame(emmeans(Bulinus_m1,  ~ site_type, type = "response")) %>% mutate(species = "Bulinus")
+#' FOR SUBMISSION: site type abundance figure
 site_type_BF  <- data.frame(emmeans(BF_m1,  ~ site_type, type = "response")) %>% mutate(species = "Bulinus forskalii ")
 site_type_BT  <- data.frame(emmeans(BT_m1,  ~ site_type, type = "response")) %>% mutate(species = "Bulinus truncatus")
-site_type_Rad  <- data.frame(emmeans(L_m1,  ~ site_type, type = "response")) %>% mutate(species = "Radix natalensis")
-site_type_all <- rbind(site_type_Bulinus, site_type_BF, site_type_BT, site_type_Rad)
 
-p1 <- ggplot(site_type_Bulinus) +
+pairs(emmeans(Bulinus_m1,  ~ site_type), type = "response")
+
+p1 <- ggplot(site_type_BF) +
       geom_bar(aes(x = site_type, y = rate), col = "black", fill = "lightgrey",
                position = position_dodge(), stat = "identity") +
       geom_errorbar(aes(x = site_type, ymin = ifelse((rate-SE) < 0, 0, (rate-SE)), ymax = rate+SE), 
                     position = position_dodge(), width = .2) +
-      facet_wrap(facets = "species", nrow = 2, scales = "free")
+      ggtitle("Bulinus forskalii") +
+      ylim(0,13) +
+      ylab("Mean abundance") +
+      theme(axis.title.x=element_blank())
+p2 <- ggplot(site_type_BT) +
+      geom_bar(aes(x = site_type, y = rate), col = "black", fill = "lightgrey",
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = site_type, ymin = ifelse((rate-SE) < 0, 0, (rate-SE)), ymax = rate+SE), 
+                    position = position_dodge(), width = .2) +
+      ggtitle("Bulinus truncatus") +
+      theme(axis.title.y=element_blank(),
+            axis.title.x=element_blank()) +
+      ylim(0,13)
+
+jpeg(file="Figures/count_site_type.jpg", width = 170, height = 85, units = "mm", res = 600)
+grid.arrange(p1, p2, ncol = 2)
+dev.off()
+
+#' FOR SUBMISSION: Locality abundance figure 
+locality_Bulinus  <- data.frame(emmeans(Bulinus_m1,  ~ locality, type = "response")) %>% mutate(species = "Bulinus")
+locality_BF  <- data.frame(emmeans(BF_m1,  ~ locality, type = "response")) %>% mutate(species = "Bulinus forskalii ")
+locality_BT  <- data.frame(emmeans(BT_m1,  ~ locality, type = "response")) %>% mutate(species = "Bulinus truncatus")
+locality_Rad  <- data.frame(emmeans(L_m1,  ~ locality, type = "response")) %>% mutate(species = "Radix natalensis")
+temp_Rad <- data.frame(c("Koutoukale Zeno", "Lata Kabia", "Seberi"), c(0,0,0), c(0,0,0), c(0,0,0), c(0,0,0), c(0,0,0), c(0,0,0))
+names(temp_Rad) <- names(locality_Rad); locality_Rad <- rbind(temp_Rad, locality_Rad)
+
+temp_BT <- data.frame("Gantchi Bassarou", 0, 0, 0, 0, 0, 0)
+names(temp_BT) <- names(locality_BT); locality_BT <- rbind(temp_BT, locality_BT)
+
+
+
+p1 <- ggplot(locality_Bulinus) +
+      geom_bar(aes(x = locality, y = rate), col = "black", fill = "lightgrey",
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = locality, ymin = ifelse((rate-SE) < 0, 0, (rate-SE)), ymax = rate+SE), 
+                    position = position_dodge(), width = .2) +
+      ggtitle("Bulinus") +
+      ylab("Mean abundance") +
+      theme(axis.title.x=element_blank(),
+            axis.text.x=element_blank())
+p2 <- ggplot(locality_BF) +
+      geom_bar(aes(x = locality, y = rate), col = "black", fill = "lightgrey",
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = locality, ymin = ifelse((rate-SE) < 0, 0, (rate-SE)), ymax = rate+SE), 
+                    position = position_dodge(), width = .2) +
+      ggtitle("Bulinus forskalii") +
+      theme(axis.title.y=element_blank(),
+            axis.title.x=element_blank(),
+            axis.text.x=element_blank()) 
+p3 <- ggplot(locality_BT) +
+      geom_bar(aes(x = locality, y = rate), col = "black", fill = "lightgrey",
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = locality, ymin = ifelse((rate-SE) < 0, 0, (rate-SE)), ymax = rate+SE), 
+                    position = position_dodge(), width = .2) +
+      ggtitle("Bulinus truncatus") +
+      ylab("Mean abundance") +
+      theme(axis.title.x=element_blank(),
+            axis.text.x = element_text(angle = 55, hjust = 1))
+p4 <- ggplot(locality_Rad) +
+      geom_bar(aes(x = locality, y = rate), col = "black", fill = "lightgrey",
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = locality, ymin = ifelse((rate-SE) < 0, 0, (rate-SE)), ymax = rate+SE), 
+                    position = position_dodge(), width = .2) +
+      ggtitle("Radix natalensis") +
+      theme(axis.title.y=element_blank(),
+            axis.title.x=element_blank(),
+            axis.text.x = element_text(angle = 55, hjust = 1)) 
+
+jpeg(file="Figures/count_locality.jpg", width = 170, height = 140, units = "mm", res = 600)
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+dev.off()
+
+
+
+######### Continue figures for submissing after here
+
+
+
+
 
 
 #' Temp_Water:site_type
