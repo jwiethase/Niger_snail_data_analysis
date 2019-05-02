@@ -406,7 +406,15 @@ names(temp_Rad) <- names(locality_Rad); locality_Rad <- rbind(temp_Rad, locality
 temp_BT <- data.frame("Gantchi Bassarou", 0, 0, 0, 0, 0, 0)
 names(temp_BT) <- names(locality_BT); locality_BT <- rbind(temp_BT, locality_BT)
 
+locality_Bulinus <- locality_Bulinus %>% arrange(as.character(locality))
+locality_BF <- locality_BF %>% arrange(as.character(locality))
+locality_BT <- locality_BT %>% arrange(as.character(locality))
+locality_Rad <- locality_Rad %>% arrange(as.character(locality))
 
+locality_Bulinus$locality <- as.factor(as.character(locality_Bulinus$locality))
+locality_BF$locality <- as.factor(as.character(locality_BF$locality))
+locality_BT$locality <- as.factor(as.character(locality_BT$locality))
+locality_Rad$locality <- as.factor(as.character(locality_Rad$locality))
 
 p1 <- ggplot(locality_Bulinus) +
       geom_bar(aes(x = locality, y = rate), col = "black", fill = "lightgrey",
