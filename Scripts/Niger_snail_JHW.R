@@ -28,7 +28,7 @@ source("HighstatLibV10.R")
 setwd("..")
 
 #' ### Import and prepare the data set
-fulldf <- read.csv("Data/Niger_snail_survey_Bulinus_comb_2019-04-28.csv") %>% 
+fulldf <- read.csv("Data/Niger_snail_survey_clean_2019_v2.csv") %>% 
   dplyr::select(filter.min, coll_date, month, locality, site_irn, BP_tot, BP_pos_tot, BF_tot, BF_pos_tot, 
                 BT_tot, BT_pos_tot, BT_prev, BF_prev, Bulinus_tot, Bulinus_pos_tot,
                 bp_pres, bt_pres, bf_pres, visit_no, site_type, L_tot, 
@@ -37,7 +37,8 @@ fulldf <- read.csv("Data/Niger_snail_survey_Bulinus_comb_2019-04-28.csv") %>%
                 water_level.v, water_level3) %>% 
   # Remove NA values in predictor variables
   dplyr::filter(Bulinus_tot <= 1000,
-                !is.na(site_irn)) %>% 
+                !is.na(site_irn),
+                site_type != "stream") %>% 
   mutate(coll_date = lubridate::dmy(coll_date), tz = "Africa/Niger",
          duration = as.numeric(as.character(duration)),
          month = as.factor(month),
@@ -189,7 +190,7 @@ plot_correlation(na.omit(subdfc), maxcat = 5L)
 # with log link (nbinom2)
 
 # Decide for a family. It's count count data, looking very overdispersed, so negative binomial is most likely appropriate
-Bulinus_poiss <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no)  + 
+Bulinus_poiss <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn) + (1|coll_date) +
                        Temp_Water + pH + water_speed_ms + water_depth + Cond + wmo_prec +
                        locality + site_type + Bulinus_pos_tot + 
                        site_type*Temp_Water + site_type*pH + site_type*Cond + site_type*wmo_prec + 
@@ -197,7 +198,7 @@ Bulinus_poiss <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no)  +
                  data=subdf,
                  family=poisson)
 
-Bulinus_m <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + 
+Bulinus_m <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn) + (1|coll_date) +
                        Temp_Water + pH + water_speed_ms + water_depth + Cond + wmo_prec +
                        locality + site_type + Bulinus_pos_tot + 
                        site_type*Temp_Water + site_type*pH + site_type*Cond + site_type*wmo_prec + 
@@ -205,7 +206,7 @@ Bulinus_m <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) +
                  data=subdf,
                  family=nbinom1)
 
-Bulinus_m1 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn/visit_no) + 
+Bulinus_m1 <- glmmTMB(Bulinus_tot ~ (1|locality/site_irn) + (1|coll_date) +
                         Temp_Water + pH + water_speed_ms + water_depth + Cond + wmo_prec +
                         locality + site_type + Bulinus_pos_tot + 
                         site_type*Temp_Water + site_type*pH + site_type*Cond + site_type*wmo_prec + 
@@ -241,8 +242,7 @@ Anova.glmmTMB(Bulinus_m1)
 ########################      Bulinus truncatus total      ##############################  
 #########################################################################################
 BT_m1 <- glmmTMB(BT_tot ~ (1|locality/site_irn) + (1|coll_date) + wmo_prec +
-                        site_type + month + BT_pos_tot + 
-                        BP_tot + BF_tot + L_tot +
+                        site_type + month + BT_pos_tot + locality +
                         offset(log(duration)),
                   data=subdf,
                   family=nbinom2)
@@ -262,8 +262,7 @@ Anova.glmmTMB(BT_m1)
 ########################      Bulinus forskalii total      ##############################
 #########################################################################################
 BF_m1 <- glmmTMB(BF_tot ~ (1|locality/site_irn) + (1|coll_date) + wmo_prec +
-              site_type + month + BF_pos_tot + 
-              BP_tot + BT_tot + L_tot +
+              site_type + month + BF_pos_tot + locality +
               offset(log(duration)),
         data=subdf,
         family=nbinom2)
@@ -283,8 +282,7 @@ Anova.glmmTMB(BF_m1)
 ##############################      Limnea total      ###################################
 #########################################################################################
 L_m1 <- glmmTMB(L_tot ~ (1|locality/site_irn) + (1|coll_date) + wmo_prec +
-                       site_type + month + 
-                       BP_tot + BT_tot + BF_tot +
+                       site_type + month + locality + 
                        offset(log(duration)),
                  data= subdf, 
                  family=nbinom2)
@@ -365,6 +363,21 @@ summary(BP_prev_m1)
 ############################      Plot of emmeans      ##################################
 #########################################################################################
 
+#' site type abundance figure
+site_type_Bulinus  <- data.frame(emmeans(Bulinus_m1,  ~ site_type, type = "response")) %>% mutate(species = "Bulinus")
+site_type_BF  <- data.frame(emmeans(BF_m1,  ~ site_type, type = "response")) %>% mutate(species = "Bulinus forskalii ")
+site_type_BT  <- data.frame(emmeans(BT_m1,  ~ site_type, type = "response")) %>% mutate(species = "Bulinus truncatus")
+site_type_Rad  <- data.frame(emmeans(L_m1,  ~ site_type, type = "response")) %>% mutate(species = "Radix natalensis")
+site_type_all <- rbind(site_type_Bulinus, site_type_BF, site_type_BT, site_type_Rad)
+
+p1 <- ggplot(site_type_Bulinus) +
+      geom_bar(aes(x = site_type, y = rate), col = "black", fill = "lightgrey",
+               position = position_dodge(), stat = "identity") +
+      geom_errorbar(aes(x = site_type, ymin = ifelse((rate-SE) < 0, 0, (rate-SE)), ymax = rate+SE), 
+                    position = position_dodge(), width = .2) +
+      facet_wrap(facets = "species", nrow = 2, scales = "free")
+
+
 #' Temp_Water:site_type
 Temp_Water_site_type_df <-  data.frame(emtrends(Bulinus_m1,  ~ site_type, var = "Temp_Water", type = "response"))
 ggplot(Temp_Water_site_type_df) +
@@ -398,6 +411,8 @@ emmip(Bulinus_m1, ~ Bulinus_pos_tot, cov.reduce = range)
 
 #' locality
 locality_df <-  data.frame(emmeans(Bulinus_m1,  ~ locality, type = "response"))
+locality_s <- emmeans(Bulinus_m1,  ~ locality)
+pairs(locality_s, type = "response", adjust = "tukey")
 ggplot(locality_df) +
       geom_bar(aes(x = reorder(locality, rate), y = rate), col = "black",
                fill = "white", position = position_dodge(), stat = "identity") +
